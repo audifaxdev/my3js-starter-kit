@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import RGBELoader from './RGBELoader';
+import RGBELoader from '../Loaders/RGBELoader';
 
 class HDRCubeTextureLoader {
   // manager: any;

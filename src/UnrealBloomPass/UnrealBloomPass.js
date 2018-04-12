@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import Pass from './Pass';
-import LuminosityHighPassShader from  './LuminosityHighPassShader';
+import LuminosityHighPassShader from './LuminosityHighPassShader';
 import { CopyShader } from 'three-effectcomposer-es6';
 
 class UnrealBloomPass extends Pass {

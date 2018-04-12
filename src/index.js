@@ -11,16 +11,19 @@ import {
   SphereGeometry,
   TextureLoader
 } from 'three';
+
 import loop from 'raf-loop';
 import EffectComposer, { RenderPass, ShaderPass, CopyShader } from 'three-effectcomposer-es6';
-import HDRCubeTextureLoader from './HDRCubeTextureLoader';
-import PMREMGenerator from './PMREMGenerator';
-import PMREMCubeUVPacker from './PMREMCubeUVPacker';
-import UnrealBloomPass from './UnrealBloomPass';
+import HDRCubeTextureLoader from './HdrEnvMap/HDRCubeTextureLoader';
+import PMREMGenerator from './HdrEnvMap/PMREMGenerator';
+import PMREMCubeUVPacker from './HdrEnvMap/PMREMCubeUVPacker';
+import UnrealBloomPass from './UnrealBloomPass/UnrealBloomPass';
 import resize from 'brindille-resize';
 import OrbitControls from './controls/OrbitControls';
-import {genCubeUrls} from './utils/hdr';
+import {genCubeUrls} from './HdrEnvMap/hdr';
 import FBXLoader from 'three-fbx-loader';
+import Gui from 'guigui';
+
 
 //1.5, .4, .95 is quite shiny
 let params = {
@@ -44,29 +47,33 @@ const camera = new PerspectiveCamera(50, resize.width / resize.height, 0.1, 1000
 const controls = new OrbitControls(camera, {
   element: renderer.domElement,
   parent: renderer.domElement,
-  phi: Math.PI * 0.5
+  zoomSpeed: 0.0075,
+  phi: 1.6924580040804253,
+  theta: 0.9016370915802706,
+  damping: 0.25,
+  distance: 9.789999999999997
 });
 
-/* Lights */
 const frontLight = new PointLight(0xFFFFFF, 1);
-const backLight = new PointLight(0xFFFFFF, 0.5);
+const backLight = new PointLight(0xFFFFFF, 1);
 scene.add(frontLight);
 scene.add(backLight);
 
-/* Materials */
 let sGeometry = new SphereGeometry( 1, 32, 32 );
 let sMaterial = new MeshStandardMaterial({
   map: null,
   color: 0xffffff,
-  metalness: 1
+  metalness: .5,
+  roughness: 0,
+  bumpScale: -0.05
 });
 let bMaterial = new MeshStandardMaterial({
   map: null,
   color: 0xffffff,
   metalness: 1
 });
-sMaterial.roughness = 0;
-sMaterial.bumpScale = -0.05;
+let hdrMaterials = [sMaterial, bMaterial];
+
 let textureLoader = new TextureLoader();
 textureLoader.load( "/mpm_vol.09_p35_can_red_diff.JPG", ( map ) => {
   // map.wrapS = THREE.RepeatWrapping;
@@ -74,16 +81,16 @@ textureLoader.load( "/mpm_vol.09_p35_can_red_diff.JPG", ( map ) => {
   // map.repeat.set( 9, 2 );
   map.anisotropy = 4;
   for (let i=0;i<hdrMaterials.length; i++) {
-    hdrMaterials[i].roughnessMap = map;
-    hdrMaterials[i].bumpMap = map;
-    hdrMaterials[i].needsUpdate = true;
+    // hdrMaterials[i].roughnessMap = map;
+    sMaterial.bumpMap = map;
+    sMaterial.needsUpdate = true;
+    sMaterial.map = map;
   }
 });
 
-let hdrMaterials = [sMaterial, bMaterial];
 let hdrCubeRenderTarget = null;
 let hdrUrls = genCubeUrls( "./dist/textures/pisaHDR/", ".hdr" );
-let hdrCubeLoader = new HDRCubeTextureLoader().load(
+new HDRCubeTextureLoader().load(
   UnsignedByteType, hdrUrls, ( hdrCubeMap ) => {
     let pmremGenerator = new PMREMGenerator( hdrCubeMap );
     pmremGenerator.update( renderer );
@@ -96,26 +103,29 @@ const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
 const copyShader = new ShaderPass(CopyShader);
 copyShader.renderToScreen = true;
+
 const bloomPass = new UnrealBloomPass(
   new Vector2(window.innerWidth, window.innerHeight),
   params.strength, params.radius, params.threshold
 );
+
 composer.addPass(renderPass);
 composer.addPass(bloomPass);
 composer.addPass(copyShader);
 renderer.gammaInput = true;
 renderer.gammaOutput = true;
 
-scene.add(new AxesHelper(50));
-let ball = new Mesh( sGeometry, bMaterial );
-ball.position.set(0, 10, 0);
-scene.add( ball );
+// scene.add(new AxesHelper(50));
+// let ball = new Mesh( sGeometry, bMaterial );
+// ball.position.set(0, 10, 0);
+// scene.add( ball );
 
 loader.load('/sodaCan_01.fbx', function (object3d) {
-  console.log('object3d', object3d);
-  // centerGroupGeometries(object3d);
   object3d.traverse(function (child) {
     if (child.hasOwnProperty('material')) {
+      console.log('child', child);
+      child.material[0] = sMaterial;
+      child.material[1] = sMaterial;
 
     }
     if (child.hasOwnProperty('geometry')) {
@@ -129,9 +139,63 @@ loader.load('/sodaCan_01.fbx', function (object3d) {
 frontLight.position.x = 20;
 backLight.position.x = 100;
 backLight.position.y = 100;
-camera.position.set(10, 10, 10);
-camera.lookAt(0, 0, 0);
-controls.target.set(0,0,0);
+
+
+const gui = Gui.addPanel('BloomPass');
+gui.add(params, 'strength', {
+  min:      0, // default is 0
+  max:      10, // default is 100
+  step:   0.1, // default is 1
+  label: 'Strenght', // default is target property's name (here "a")
+  watch: true // default is false
+}).on('update', value => {
+  // do something with value
+  bloomPass.strength = value;
+});
+gui.add(params, 'radius', {
+  min:      -Math.PI, // default is 0
+  max:      Math.PI, // default is 100
+  step:   0.01, // default is 1
+  label: 'Radius', // default is target property's name (here "a")
+  watch: true // default is false
+}).on('update', value => {
+  // do something with value
+  bloomPass.radius = value;
+});
+gui.add(params, 'threshold', {
+  min:      0, // default is 0
+  max:      1, // default is 100
+  step:   0.01, // default is 1
+  label: 'threshold', // default is target property's name (here "a")
+  watch: true // default is false
+}).on('update', value => {
+  // do something with value
+  bloomPass.threshold = value;
+});
+
+const guiMaterial = Gui.addPanel('Material');
+guiMaterial.add(sMaterial, 'roughness', {
+  min:      0, // default is 0
+  max:      1, // default is 100
+  step:   0.01, // default is 1
+  label: 'Roughness', // default is target property's name (here "a")
+  watch: true // default is false
+});
+guiMaterial.add(sMaterial, 'metalness', {
+  min:      0, // default is 0
+  max:      1, // default is 100
+  step:   0.01, // default is 1
+  label: 'Metalness', // default is target property's name (here "a")
+  watch: true // default is false
+});
+guiMaterial.add(sMaterial, 'bumpScale', {
+  min:      -1, // default is 0
+  max:      1, // default is 100
+  step:   0.01, // default is 1
+  label: 'Bump scale', // default is target property's name (here "a")
+  watch: true // default is false
+});
+
 loop(render).start();
 
 resize.addListener(function () {
@@ -142,6 +206,7 @@ resize.addListener(function () {
 
 function render(dt) {
   controls.update();
+  console.log('controls', controls);
   if (composer) {
     for (let i=0;i<hdrMaterials.length; i++) {
       let newEnvMap = hdrCubeRenderTarget ? hdrCubeRenderTarget.texture : null;
