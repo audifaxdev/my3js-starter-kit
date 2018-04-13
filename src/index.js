@@ -11,6 +11,7 @@ import {
   SphereGeometry,
   TextureLoader
 } from 'three';
+
 import FBXLoader from 'three-fbx-loader';
 import OrbitControls from './controls/OrbitControls';
 import HDRCubeTextureLoader from './HdrEnvMap/HDRCubeTextureLoader';
@@ -23,7 +24,7 @@ import loop from 'raf-loop';
 import resize from 'brindille-resize';
 import Gui from 'guigui';
 
-const DEBUG = false;
+const DEBUG = true;
 let params = {
   strength: .5,
   radius: .4,
@@ -36,20 +37,21 @@ const renderer = new WebGLRenderer({
   antialias: true
 });
 renderer.setClearColor(0x323232);
-container.style.overflow = 'visible';
+container.style.overflow = 'hidden';
 container.style.margin = 0;
 container.appendChild(renderer.domElement);
 const scene = new Scene();
-const camera = new PerspectiveCamera(50, resize.width / resize.height, 0.1, 1000);
+const camera = new PerspectiveCamera(50, resize.width / resize.height, 0.1, 10000);
 const controls = new OrbitControls(camera, {
   element: renderer.domElement,
   parent: renderer.domElement,
-  zoomSpeed: 0.0075,
+  zoomSpeed: 0.01,
   phi: 1.6924580040804253,
   theta: 0.9016370915802706,
   damping: 0.25,
-  distance: 9.789999999999997
+  distance: 1000
 });
+
 const frontLight = new PointLight(0xFFFFFF, 1);
 const backLight = new PointLight(0xFFFFFF, 1);
 scene.add(frontLight);
@@ -85,7 +87,7 @@ textureLoader.load( "/mpm_vol.09_p35_can_red_diff.JPG", ( map ) => {
     sMaterial.map = map;
   }
 });
-function updateHdrEnvMap() {
+function updateHdrMaterialEnvMap() {
   for (let i=0;i<hdrMaterials.length; i++) {
     let newEnvMap = hdrCubeRenderTarget ? hdrCubeRenderTarget.texture : null;
     if( newEnvMap !== hdrMaterials[i].envMap ) {
@@ -103,8 +105,8 @@ new HDRCubeTextureLoader().load(
     let pmremCubeUVPacker = new PMREMCubeUVPacker( pmremGenerator.cubeLods );
     pmremCubeUVPacker.update( renderer );
     hdrCubeRenderTarget = pmremCubeUVPacker.CubeUVRenderTarget;
-    updateHdrEnvMap();
-  });
+    updateHdrMaterialEnvMap();
+});
 
 //Fx composer
 const composer = new EffectComposer(renderer);
@@ -123,27 +125,21 @@ renderer.gammaOutput = true;
 
 //Debug
 if (DEBUG) {
-  scene.add(new AxesHelper(50));
+  scene.add(new AxesHelper(5000));
   let ball = new Mesh( sGeometry, bMaterial );
   ball.position.set(0, 10, 0);
   scene.add( ball );
-
 }
 
 //FBX scene loading
-loader.load('/sodaCan_01.fbx', function (object3d) {
+loader.load('/big-can-with-droplets.fbx', function (object3d) {
   object3d.traverse(function (child) {
+    console.log('Child', child);
     if (child.hasOwnProperty('material')) {
-      console.log('child', child);
-      child.material[0] = sMaterial;
-      child.material[1] = sMaterial;
 
-    }
-    if (child.hasOwnProperty('geometry')) {
-      child.geometry.center();
+      child.material = [sMaterial, sMaterial, sMaterial, sMaterial];
     }
   });
-  object3d.rotation.y = Math.PI;
   scene.add(object3d);
 });
 
