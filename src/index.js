@@ -11,7 +11,6 @@ import {
   SphereGeometry,
   TextureLoader
 } from 'three';
-
 import FBXLoader from 'three-fbx-loader';
 import OrbitControls from './controls/OrbitControls';
 import HDRCubeTextureLoader from './HdrEnvMap/HDRCubeTextureLoader';
@@ -64,7 +63,14 @@ let sMaterial = new MeshStandardMaterial({
   color: 0xffffff,
   metalness: .5,
   roughness: 0,
-  bumpScale: -0.05
+  bumpScale: -1
+});
+let canOpenerMaterial = new MeshStandardMaterial({
+  map: null,
+  color: 0xffffff,
+  metalness: .5,
+  roughness: .5,
+  bumpScale: 0
 });
 let bMaterial = new MeshStandardMaterial({
   map: null,
@@ -73,7 +79,10 @@ let bMaterial = new MeshStandardMaterial({
 });
 
 //HdrEnvMap
-let hdrMaterials = [sMaterial, bMaterial];
+let hdrMaterials = [
+  sMaterial,
+  canOpenerMaterial
+];
 let textureLoader = new TextureLoader();
 textureLoader.load( "/mpm_vol.09_p35_can_red_diff.JPG", ( map ) => {
   // map.wrapS = THREE.RepeatWrapping;
@@ -96,6 +105,7 @@ function updateHdrMaterialEnvMap() {
     }
   }
 }
+
 let hdrCubeRenderTarget = null;
 let hdrUrls = genCubeUrls( "./dist/textures/pisaHDR/", ".hdr" );
 new HDRCubeTextureLoader().load(
@@ -106,7 +116,7 @@ new HDRCubeTextureLoader().load(
     pmremCubeUVPacker.update( renderer );
     hdrCubeRenderTarget = pmremCubeUVPacker.CubeUVRenderTarget;
     updateHdrMaterialEnvMap();
-});
+  });
 
 //Fx composer
 const composer = new EffectComposer(renderer);
@@ -127,17 +137,42 @@ renderer.gammaOutput = true;
 if (DEBUG) {
   scene.add(new AxesHelper(5000));
   let ball = new Mesh( sGeometry, bMaterial );
+  ball.name = 'DaBall';
   ball.position.set(0, 10, 0);
   scene.add( ball );
 }
 
 //FBX scene loading
-loader.load('/big-can-with-droplets.fbx', function (object3d) {
-  object3d.traverse(function (child) {
-    console.log('Child', child);
-    if (child.hasOwnProperty('material')) {
+// loader.load('/droplets.fbx', function (object3d) {
+//   console.log('DROPLETS', object3d);
+//   object3d.traverse(function (child) {
+//     switch (child.name) {
+//       case "mid_bigModel":
+//       case "Drops_On_BigModel":
+//       case "Circle001Model":
+//       case "Opener_LowModel":
+//         // for (let i=0;i<child.material.length;i++) {
+//         //   child.material[i] = sMaterial;
+//         // }
+//         break;
+//     }
+//   });
+//   scene.add(object3d);
+// });
 
-      child.material = [sMaterial, sMaterial, sMaterial, sMaterial];
+loader.load('/big-can-with-droplets.fbx', function (object3d) {
+  console.log('FBX Loaded', object3d);
+  object3d.traverse(function (child) {
+    switch (child.name) {
+      case "Drops_On_BigModel":
+        break;
+      case "mid_bigModel":
+        child.material = sMaterial;
+        break;
+      case "Circle001Model":
+      case "Opener_LowModel":
+        child.material = canOpenerMaterial;
+        break;
     }
   });
   scene.add(object3d);
@@ -193,8 +228,8 @@ function setUpUI() {
     watch: true // default is false
   });
   guiMaterial.add(sMaterial, 'bumpScale', {
-    min:      -1, // default is 0
-    max:      1, // default is 100
+    min:      -10, // default is 0
+    max:      10, // default is 100
     step:   0.01, // default is 1
     label: 'Bump scale', // default is target property's name (here "a")
     watch: true // default is false
@@ -217,9 +252,8 @@ function render(dt) {
 }
 
 //Final tweaks
-frontLight.position.x = 20;
-backLight.position.x = 100;
-backLight.position.y = 100;
+frontLight.position.set(1000, 1000, 1000);
+backLight.position.set(1000, 1000, -1000);
 
 //Start rendering
 loop(render).start();
