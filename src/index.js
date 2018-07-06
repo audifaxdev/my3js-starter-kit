@@ -135,16 +135,6 @@ class Application {
     loop(this.render).start();
     this.resize();
 
-    setInterval(() => {
-      if ( this.mixers.length > 0 ) {
-        for (let i=0;i<this.mixers.length;i++) {
-          console.log('mixer', i , this.mixers[i]);
-          this.mixers[ i ].update( this.clock.getDelta() );
-          // this.camera.updateProjectionMatrix();
-        }
-      }
-    }, 20);
-
     preloader.load(manifest, () => {
       const asset = preloader.getObject3d('myCube');
       console.log({asset});
@@ -221,11 +211,16 @@ class Application {
     if (this.controls) {
       this.controls.update();
     }
-
+    if ( this.mixers.length > 0 ) {
+      for (let i=0;i<this.mixers.length;i++) {
+        console.log('mixer', i , this.mixers[i]);
+        this.mixers[ i ].update( this.clock.getDelta() );
+      }
+    }
     if (this.composer) {
       this.composer.render();
     } else {
-      //   this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.camera);
     }
   };
 }
