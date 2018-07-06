@@ -183,9 +183,7 @@ class HDRCubeTextureLoader {
       loadHDRData( i, onLoad, onProgress, onError );
 
     }
-
     return texture;
-
   };
 }
 

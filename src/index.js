@@ -2,6 +2,7 @@ import {
   WebGLRenderer,
   Scene,
   PerspectiveCamera,
+  CameraHelper,
   PointLight,
   Vector2,
   AxesHelper,
@@ -9,251 +10,224 @@ import {
   MeshStandardMaterial,
   Mesh,
   SphereGeometry,
-  TextureLoader
+  Uncharted2ToneMapping,
+  Clock,
+  SmoothShading, AnimationMixer
 } from 'three';
-import FBXLoader from 'three-fbx-loader';
+import FXAAShader from './PostProcessing/FXAAShader';
 import OrbitControls from './controls/OrbitControls';
 import HDRCubeTextureLoader from './HdrEnvMap/HDRCubeTextureLoader';
 import PMREMGenerator from './HdrEnvMap/PMREMGenerator';
 import PMREMCubeUVPacker from './HdrEnvMap/PMREMCubeUVPacker';
-import UnrealBloomPass from './UnrealBloomPass/UnrealBloomPass';
+import UnrealBloomPass from './PostProcessing/UnrealBloomPass';
 import EffectComposer, { RenderPass, ShaderPass, CopyShader } from 'three-effectcomposer-es6';
 import {genCubeUrls} from './HdrEnvMap/hdr';
 import loop from 'raf-loop';
 import resize from 'brindille-resize';
-import Gui from 'guigui';
+import { TimelineMax } from 'gsap';
+import preloader from './utils/preloader';
+import manifest from './assets';
+import Gui from "guigui";
+import { forEach, find } from "lodash";
 
-const DEBUG = true;
-let params = {
-  strength: .5,
-  radius: .4,
-  threshold: .85
+const DEBUG = false;
+
+const setupAnimation = (object, animation) => {
+  Gui.add(object.mixer.clipAction( animation ), 'play', {label: `Start ${animation.name}`});
+  Gui.add(object.mixer.clipAction( animation ), 'stop', {label: `Stop ${animation.name}`});
 };
-//Init
-const loader = new FBXLoader();
-const container = document.body;
-const renderer = new WebGLRenderer({
-  antialias: true
-});
-renderer.setClearColor(0x323232);
-container.style.overflow = 'hidden';
-container.style.margin = 0;
-container.appendChild(renderer.domElement);
-const scene = new Scene();
-const camera = new PerspectiveCamera(50, resize.width / resize.height, 0.1, 10000);
-const controls = new OrbitControls(camera, {
-  element: renderer.domElement,
-  parent: renderer.domElement,
-  zoomSpeed: 0.01,
-  phi: 1.6924580040804253,
-  theta: 0.9016370915802706,
-  damping: 0.25,
-  distance: 1000
-});
 
-const frontLight = new PointLight(0xFFFFFF, 1);
-const backLight = new PointLight(0xFFFFFF, 1);
-scene.add(frontLight);
-scene.add(backLight);
+class Application {
+  constructor() {
+    this.bloomParams = {
+      strength: .3,
+      // strength: .5,
+      radius: .25,
+      // radius: .4,
+      threshold: .85
+      // threshold: .85
+    };
 
-//Materials
-let sGeometry = new SphereGeometry( 1, 32, 32 );
-let sMaterial = new MeshStandardMaterial({
-  map: null,
-  color: 0xffffff,
-  metalness: .5,
-  roughness: 0,
-  bumpScale: -1
-});
-let canOpenerMaterial = new MeshStandardMaterial({
-  map: null,
-  color: 0xffffff,
-  metalness: .5,
-  roughness: .5,
-  bumpScale: 0
-});
-let bMaterial = new MeshStandardMaterial({
-  map: null,
-  color: 0xffffff,
-  metalness: 1
-});
+    this.container = document.body;
+    this.renderer = new WebGLRenderer({
+      antialias: true
+    });
+    this.renderer.setClearColor(0x323232);
+    // this.renderer.setClearColor(0xffffff);
+    this.container.style.overflow = 'hidden';
+    this.container.style.margin = 0;
+    this.container.appendChild(this.renderer.domElement);
 
-//HdrEnvMap
-let hdrMaterials = [
-  sMaterial,
-  canOpenerMaterial
-];
-let textureLoader = new TextureLoader();
-textureLoader.load( "/mpm_vol.09_p35_can_red_diff.JPG", ( map ) => {
-  // map.wrapS = THREE.RepeatWrapping;
-  // map.wrapT = THREE.RepeatWrapping;
-  // map.repeat.set( 9, 2 );
-  map.anisotropy = 4;
-  for (let i=0;i<hdrMaterials.length; i++) {
-    // hdrMaterials[i].roughnessMap = map;
-    sMaterial.bumpMap = map;
-    sMaterial.needsUpdate = true;
-    sMaterial.map = map;
-  }
-});
-function updateHdrMaterialEnvMap() {
-  for (let i=0;i<hdrMaterials.length; i++) {
-    let newEnvMap = hdrCubeRenderTarget ? hdrCubeRenderTarget.texture : null;
-    if( newEnvMap !== hdrMaterials[i].envMap ) {
-      hdrMaterials[i].envMap = newEnvMap;
-      hdrMaterials[i].needsUpdate = true;
+    this.composer = null;
+    this.scene = new Scene();
+    this.camera = new PerspectiveCamera(50, resize.width / resize.height, 0.1, 10000);
+    this.camera.position.set(10, 10, 10);
+    this.camera.lookAt(0, 0, 0,);
+    this.controls = null;
+    this.mixers = [];
+    this.clock = new Clock();
+
+    // this.setupComposer();
+
+    let sMaterial = new MeshStandardMaterial({
+      map: null,
+      color: 0xffffff,
+      metalness: 1,
+      roughness: .7,
+      bumpScale: 0,
+      flatShading: SmoothShading
+    });
+    let bMaterial = new MeshStandardMaterial({
+      map: null,
+      color: 0xffffff,
+      metalness: 1,
+      roughness: .2,
+      bumpScale: -1,
+    });
+
+    let hdrMaterials = [
+      sMaterial,
+      bMaterial
+    ];
+
+    function updateHdrMaterialEnvMap() {
+      for (let i=0;i<hdrMaterials.length; i++) {
+        let newEnvMap = hdrCubeRenderTarget ? hdrCubeRenderTarget.texture : null;
+        if( newEnvMap !== hdrMaterials[i].envMap ) {
+          hdrMaterials[i].envMap = newEnvMap;
+          hdrMaterials[i].needsUpdate = true;
+        }
+      }
     }
-  }
-}
 
-let hdrCubeRenderTarget = null;
-let hdrUrls = genCubeUrls( "./dist/textures/pisaHDR/", ".hdr" );
-new HDRCubeTextureLoader().load(
-  UnsignedByteType, hdrUrls, ( hdrCubeMap ) => {
-    let pmremGenerator = new PMREMGenerator( hdrCubeMap );
-    pmremGenerator.update( renderer );
-    let pmremCubeUVPacker = new PMREMCubeUVPacker( pmremGenerator.cubeLods );
-    pmremCubeUVPacker.update( renderer );
-    hdrCubeRenderTarget = pmremCubeUVPacker.CubeUVRenderTarget;
-    updateHdrMaterialEnvMap();
-  });
+    let hdrCubeRenderTarget = null;
+    let hdrUrls = genCubeUrls( "./dist/textures/pisaHDR/", ".hdr" );
+    new HDRCubeTextureLoader().load(
+      UnsignedByteType, hdrUrls, ( hdrCubeMap ) => {
+        let pmremGenerator = new PMREMGenerator( hdrCubeMap );
+        pmremGenerator.update( this.renderer );
+        let pmremCubeUVPacker = new PMREMCubeUVPacker( pmremGenerator.cubeLods );
+        pmremCubeUVPacker.update( this.renderer );
+        hdrCubeRenderTarget = pmremCubeUVPacker.CubeUVRenderTarget;
+        updateHdrMaterialEnvMap();
+      }
+    );
 
-//Fx composer
-const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, camera);
-const copyShader = new ShaderPass(CopyShader);
-copyShader.renderToScreen = true;
-const bloomPass = new UnrealBloomPass(
-  new Vector2(window.innerWidth, window.innerHeight),
-  params.strength, params.radius, params.threshold
-);
-composer.addPass(renderPass);
-composer.addPass(bloomPass);
-composer.addPass(copyShader);
-renderer.gammaInput = true;
-renderer.gammaOutput = true;
-
-//Debug
-if (DEBUG) {
-  scene.add(new AxesHelper(5000));
-  let ball = new Mesh( sGeometry, bMaterial );
-  ball.name = 'DaBall';
-  ball.position.set(0, 10, 0);
-  scene.add( ball );
-}
-
-//FBX scene loading
-// loader.load('/droplets.fbx', function (object3d) {
-//   console.log('DROPLETS', object3d);
-//   object3d.traverse(function (child) {
-//     switch (child.name) {
-//       case "mid_bigModel":
-//       case "Drops_On_BigModel":
-//       case "Circle001Model":
-//       case "Opener_LowModel":
-//         // for (let i=0;i<child.material.length;i++) {
-//         //   child.material[i] = sMaterial;
-//         // }
-//         break;
-//     }
-//   });
-//   scene.add(object3d);
-// });
-
-loader.load('/big-can-with-droplets.fbx', function (object3d) {
-  console.log('FBX Loaded', object3d);
-  object3d.traverse(function (child) {
-    switch (child.name) {
-      case "Drops_On_BigModel":
-        break;
-      case "mid_bigModel":
-        child.material = sMaterial;
-        break;
-      case "Circle001Model":
-      case "Opener_LowModel":
-        child.material = canOpenerMaterial;
-        break;
+    if (DEBUG) {
+      this.controls = new OrbitControls(this.camera, {
+        element: this.renderer.domElement,
+        parent: this.renderer.domElement,
+        zoomSpeed: 0.01,
+        phi: 1.6924580040804253,
+        theta: 0.9016370915802706,
+        damping: 0.25,
+        distance: 30
+      });
+      let sGeometry = new SphereGeometry( 1, 32, 32 );
+      this.scene.add(new AxesHelper(5000));
+      let ball = new Mesh( sGeometry, bMaterial );
+      ball.name = 'DaBall';
+      ball.position.set(0, 10, 0);
+      this.scene.add( ball );
     }
-  });
-  scene.add(object3d);
-});
 
-//UI
-function setUpUI() {
-  const guiBloomPass = Gui.addPanel('BloomPass');
-  guiBloomPass.add(params, 'strength', {
-    min:      0, // default is 0
-    max:      10, // default is 100
-    step:   0.1, // default is 1
-    label: 'Strenght', // default is target property's name (here "a")
-    watch: true // default is false
-  }).on('update', value => {
-    // do something with value
-    bloomPass.strength = value;
-  });
-  guiBloomPass.add(params, 'radius', {
-    min:      -Math.PI, // default is 0
-    max:      Math.PI, // default is 100
-    step:   0.01, // default is 1
-    label: 'Radius', // default is target property's name (here "a")
-    watch: true // default is false
-  }).on('update', value => {
-    // do something with value
-    bloomPass.radius = value;
-  });
-  guiBloomPass.add(params, 'threshold', {
-    min:      0, // default is 0
-    max:      1, // default is 100
-    step:   0.01, // default is 1
-    label: 'threshold', // default is target property's name (here "a")
-    watch: true // default is false
-  }).on('update', value => {
-    // do something with value
-    bloomPass.threshold = value;
-  });
+    window.addEventListener("resize", this.resize);
+    loop(this.render).start();
+    this.resize();
 
-  const guiMaterial = Gui.addPanel('Material');
-  guiMaterial.add(sMaterial, 'roughness', {
-    min:      0, // default is 0
-    max:      1, // default is 100
-    step:   0.01, // default is 1
-    label: 'Roughness', // default is target property's name (here "a")
-    watch: true // default is false
-  });
-  guiMaterial.add(sMaterial, 'metalness', {
-    min:      0, // default is 0
-    max:      1, // default is 100
-    step:   0.01, // default is 1
-    label: 'Metalness', // default is target property's name (here "a")
-    watch: true // default is false
-  });
-  guiMaterial.add(sMaterial, 'bumpScale', {
-    min:      -10, // default is 0
-    max:      10, // default is 100
-    step:   0.01, // default is 1
-    label: 'Bump scale', // default is target property's name (here "a")
-    watch: true // default is false
-  });
-}
-setUpUI();
+    setInterval(() => {
+      if ( this.mixers.length > 0 ) {
+        for (let i=0;i<this.mixers.length;i++) {
+          console.log('mixer', i , this.mixers[i]);
+          this.mixers[ i ].update( this.clock.getDelta() );
+          // this.camera.updateProjectionMatrix();
+        }
+      }
+    }, 20);
 
-//Resize
-resize.addListener(function () {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-});
-
-function render(dt) {
-  controls.update();
-  if (composer) {
-    composer.render();
+    preloader.load(manifest, () => {
+      const asset = preloader.getObject3d('myCube');
+      console.log({asset});
+      if (asset.scene) {
+        asset.scene.traverse(object3d => {
+          switch (object3d.name) {
+            case "Cube":
+              object3d.material = sMaterial;
+              object3d.mixer = new AnimationMixer( object3d );
+              this.mixers.push( object3d.mixer );
+              setupAnimation(object3d, find(asset.animations, {name: 'Scale'}));
+              setupAnimation(object3d, find(asset.animations, {name: 'Rotation'}));
+              break;
+            default:
+              break;
+          }
+        });
+      }
+      let camera = asset.cameras[0];
+      camera.mixer = new AnimationMixer( camera );
+      this.mixers.push(camera.mixer);
+      setupAnimation(camera, find(asset.animations, {name: 'CameraAction'}));
+      asset.scene.remove(camera);
+      this.setCamera(camera);
+      this.scene.add(new CameraHelper( camera ) );
+      this.scene.add(asset.scene);
+    });
   }
+
+  setCamera(camera) {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.fov = 50;
+    camera.far = 1000;
+    camera.updateProjectionMatrix();
+    // Gui.add(camera.rotation, 'x');
+    Gui.add(camera.rotation, 'x', {min: -Math.PI/2, max: Math.PI/2});
+    Gui.add(camera.rotation, 'y');
+    Gui.add(camera.rotation, 'z');
+    this.camera = camera;
+    this.setupComposer();
+    console.log('this.camera', this.camera);
+  }
+
+  setupComposer() {
+    this.composer = new EffectComposer(this.renderer);
+    const copyShader = new ShaderPass(CopyShader);
+    copyShader.renderToScreen = true;
+    this.fxaaPass = new ShaderPass( FXAAShader );
+    const bloomPass = new UnrealBloomPass(
+      new Vector2(window.innerWidth, window.innerHeight),
+      this.bloomParams.strength, this.bloomParams.radius, this.bloomParams.threshold
+    );
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.composer.addPass(this.fxaaPass);
+    this.composer.addPass(bloomPass);
+    this.composer.addPass(copyShader);
+    this.renderer.gammaInput = true;
+    this.renderer.gammaOutput = true;
+    this.renderer.toneMappingExposure = Uncharted2ToneMapping;
+    this.renderer.exposure = 1;
+  }
+
+  resize = () => {
+    console.log('resize');
+    if (this.fxaaPass) {
+      this.fxaaPass.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+    }
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+  };
+
+  render = (dt) => {
+    if (this.controls) {
+      this.controls.update();
+    }
+
+    if (this.composer) {
+      this.composer.render();
+    } else {
+      //   this.renderer.render(this.scene, this.camera);
+    }
+  };
 }
 
-//Final tweaks
-frontLight.position.set(1000, 1000, 1000);
-backLight.position.set(1000, 1000, -1000);
-
-//Start rendering
-loop(render).start();
+new Application();
