@@ -2,17 +2,20 @@ import {
   WebGLRenderer,
   Scene,
   PerspectiveCamera,
-  CameraHelper,
-  PointLight,
+  Box3,
   Vector2,
+  Vector3,
   AxesHelper,
   UnsignedByteType,
   MeshStandardMaterial,
   Mesh,
   SphereGeometry,
   Uncharted2ToneMapping,
+  LinearToneMapping,
   Clock,
-  SmoothShading, AnimationMixer
+  SmoothShading,
+  AnimationMixer, HemisphereLight, AmbientLight, DirectionalLight,
+
 } from 'three';
 import FXAAShader from './PostProcessing/FXAAShader';
 import OrbitControls from './controls/OrbitControls';
@@ -30,50 +33,59 @@ import manifest from './assets';
 import Gui from "guigui";
 import { forEach, find } from "lodash";
 
-const DEBUG = false;
-
-const setupAnimation = (object, animation) => {
-  Gui.add(object.mixer.clipAction( animation ), 'play', {label: `Start ${animation.name}`});
-  Gui.add(object.mixer.clipAction( animation ), 'stop', {label: `Stop ${animation.name}`});
-};
+const DEBUG = true;
+const DEFAULT_CAMERA = '[default]';
 
 class Application {
   constructor() {
     this.bloomParams = {
-      strength: .3,
-      // strength: .5,
-      radius: .25,
-      // radius: .4,
-      threshold: .85
+      // strength: .15,
+      strength: .5,
+      // radius: .1,
+      radius: .4,
       // threshold: .85
+      threshold: .85
     };
 
     this.container = document.body;
     this.renderer = new WebGLRenderer({
-      antialias: true
+      antialias: true,
     });
-    this.renderer.setClearColor(0x323232);
-    // this.renderer.setClearColor(0xffffff);
+    this.renderer.setClearColor(0xcccccc);
+    this.renderer.gammaInput = true;
+    this.renderer.gammaOutput = true;
+    this.renderer.toneMappingExposure = Uncharted2ToneMapping;
+    this.renderer.exposure = 0;
     this.container.style.overflow = 'hidden';
     this.container.style.margin = 0;
     this.container.appendChild(this.renderer.domElement);
 
     this.composer = null;
     this.scene = new Scene();
-    this.camera = new PerspectiveCamera(50, resize.width / resize.height, 0.1, 10000);
-    this.camera.position.set(10, 10, 10);
-    this.camera.lookAt(0, 0, 0,);
-    this.controls = null;
-    this.mixers = [];
+    this.defaultCamera = new PerspectiveCamera(50, resize.width / resize.height, 0.01, 10000);
+    this.defaultCamera.position.set(10, 10, 10);
+    this.defaultCamera.lookAt(0, 0, 0,);
+    this.scene.add(this.defaultCamera);
+    this.activeCamera = this.defaultCamera;
+    this.mixer = null;
     this.clock = new Clock();
 
-    // this.setupComposer();
+    this.controls = new OrbitControls(this.defaultCamera, {
+      element: this.renderer.domElement,
+      parent: this.renderer.domElement,
+      zoomSpeed: 0.01,
+      phi: 1.6924580040804253,
+      theta: 0.9016370915802706,
+      damping: 0.25,
+      distance: 30
+    });
+    // this.setupFXComposer();
 
     let sMaterial = new MeshStandardMaterial({
       map: null,
-      color: 0xffffff,
-      metalness: 1,
-      roughness: .7,
+      color: 0xcccccc,
+      metalness: .1,
+      roughness: 1,
       bumpScale: 0,
       flatShading: SmoothShading
     });
@@ -85,23 +97,23 @@ class Application {
       bumpScale: -1,
     });
 
-    let hdrMaterials = [
+    this.hdrMaterials = [
       sMaterial,
-      bMaterial
+      // bMaterial
     ];
 
-    function updateHdrMaterialEnvMap() {
-      for (let i=0;i<hdrMaterials.length; i++) {
+    const updateHdrMaterialEnvMap = () => {
+      for (let i=0;i<this.hdrMaterials.length; i++) {
         let newEnvMap = hdrCubeRenderTarget ? hdrCubeRenderTarget.texture : null;
-        if( newEnvMap !== hdrMaterials[i].envMap ) {
-          hdrMaterials[i].envMap = newEnvMap;
-          hdrMaterials[i].needsUpdate = true;
+        if( newEnvMap !== this.hdrMaterials[i].envMap ) {
+          this.hdrMaterials[i].envMap = newEnvMap;
+          this.hdrMaterials[i].needsUpdate = true;
         }
       }
-    }
+    };
 
     let hdrCubeRenderTarget = null;
-    let hdrUrls = genCubeUrls( "./dist/textures/pisaHDR/", ".hdr" );
+    let hdrUrls = genCubeUrls( "./dist/textures/HollywoodBD/", ".hdr" );
     new HDRCubeTextureLoader().load(
       UnsignedByteType, hdrUrls, ( hdrCubeMap ) => {
         let pmremGenerator = new PMREMGenerator( hdrCubeMap );
@@ -114,15 +126,6 @@ class Application {
     );
 
     if (DEBUG) {
-      this.controls = new OrbitControls(this.camera, {
-        element: this.renderer.domElement,
-        parent: this.renderer.domElement,
-        zoomSpeed: 0.01,
-        phi: 1.6924580040804253,
-        theta: 0.9016370915802706,
-        damping: 0.25,
-        distance: 30
-      });
       let sGeometry = new SphereGeometry( 1, 32, 32 );
       this.scene.add(new AxesHelper(5000));
       let ball = new Mesh( sGeometry, bMaterial );
@@ -136,91 +139,160 @@ class Application {
     this.resize();
 
     preloader.load(manifest, () => {
-      const asset = preloader.getObject3d('myCube');
-      console.log({asset});
-      if (asset.scene) {
-        asset.scene.traverse(object3d => {
-          switch (object3d.name) {
-            case "Cube":
-              object3d.material = sMaterial;
-              object3d.mixer = new AnimationMixer( object3d );
-              this.mixers.push( object3d.mixer );
-              setupAnimation(object3d, find(asset.animations, {name: 'Scale'}));
-              setupAnimation(object3d, find(asset.animations, {name: 'Rotation'}));
-              break;
-            default:
-              break;
-          }
-        });
-      }
-      let camera = asset.cameras[0];
-      camera.mixer = new AnimationMixer( camera );
-      this.mixers.push(camera.mixer);
-      setupAnimation(camera, find(asset.animations, {name: 'CameraAction'}));
-      asset.scene.remove(camera);
-      this.setCamera(camera);
-      this.scene.add(new CameraHelper( camera ) );
-      this.scene.add(asset.scene);
+      const gltf = preloader.getObject3d('myCube');
+      console.log('gltf', gltf);
+      const scene = gltf.scene || gltf.scenes[0];
+      const cameras = gltf.cameras || [];
+      const clips = gltf.animations || [];
+      this.setContent(scene, clips, cameras);
     });
   }
 
-  setCamera(camera) {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.fov = 50;
-    camera.far = 1000;
-    camera.updateProjectionMatrix();
-    // Gui.add(camera.rotation, 'x');
-    Gui.add(camera.rotation, 'x', {min: -Math.PI/2, max: Math.PI/2});
-    Gui.add(camera.rotation, 'y');
-    Gui.add(camera.rotation, 'z');
-    this.camera = camera;
-    this.setupComposer();
-    console.log('this.camera', this.camera);
+  clear() {
+    if ( !this.content ) return;
+    this.scene.remove( this.content );
+    this.content.traverse((node) => {
+      if ( !node.isMesh ) return;
+      node.geometry.dispose();
+    });
   }
 
-  setupComposer() {
+  setContent ( object, clips, cameras ) {
+
+    this.clear();
+
+    object.updateMatrixWorld();
+    const box = new Box3().setFromObject(object);
+    const size = box.getSize(new Vector3()).length();
+    const center = box.getCenter(new Vector3());
+
+    this.controls.reset();
+    object.position.x += (object.position.x - center.x);
+    object.position.y += (object.position.y - center.y);
+    object.position.z += (object.position.z - center.z);
+    this.controls.maxDistance = size * 10;
+    this.defaultCamera.near = size / 100;
+    this.defaultCamera.far = size * 100;
+    this.defaultCamera.updateProjectionMatrix();
+
+    this.defaultCamera.position.copy(center);
+    this.defaultCamera.position.x += size / 2.0;
+    this.defaultCamera.position.y += size / 5.0;
+    this.defaultCamera.position.z += size / 2.0;
+    this.defaultCamera.lookAt(center);
+
+    object.traverse(child => {
+      if (child.isMesh) {
+        child.material = this.hdrMaterials[0];
+      }
+    });
+
+    this.scene.add(object);
+    this.content = object;
+
+    if (cameras.length) {
+      this.setCamera(cameras[0].name);
+    }
+    this.setClips(clips);
+    this.addLights();
+  }
+
+
+  addLights () {
+    const hemiLight = new HemisphereLight(0xFFFFFF, 0x000000, .1);
+    hemiLight.name = 'hemi_light';
+    // this.scene.add(hemiLight);
+
+    const light1  = new AmbientLight(0xffffff, .3);
+    light1.name = 'ambient_light';
+    this.scene.add( light1 );
+    //
+    const light2  = new DirectionalLight(0xffffff, .8);
+    light2.position.set(30, 30, 0); // ~60º
+    light2.name = 'main_light';
+    this.scene.add( light2 );
+  }
+
+  setClips ( clips ) {
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      this.mixer.uncacheRoot(this.mixer.getRoot());
+      this.mixer = null;
+    }
+
+    this.clips = clips;
+    if (!clips.length) return;
+
+    this.mixer = new AnimationMixer(this.content);
+
+    forEach(this.clips, (clip) => this.setupClip(clip));
+  }
+  setupClip = (clip) => {
+    let action = this.mixer.clipAction(clip);
+    Gui.add(action, 'play', {label: `${clip.name} Play()`});
+    Gui.add(action, 'stop', {label: `${clip.name} Stop()`});
+  };
+  setCamera(name) {
+    console.log(`Setting camera : ${name}`);
+    if (name === DEFAULT_CAMERA) {
+      console.log('Setting default camera');
+      this.controls.enabled = true;
+      this.activeCamera = this.defaultCamera;
+    } else {
+      this.controls.enabled = false;
+      let found = false;
+      this.content.traverse((node) => {
+        if (node.isCamera && node.name === name) {
+          found = true;
+          this.activeCamera = node;
+        }
+      });
+      if (!found) {
+        console.log(`Camera ${name} not found!`);
+      }
+    }
+    this.activeCamera.aspect = window.innerWidth / window.innerHeight;
+    this.activeCamera.fov = 50;
+    this.activeCamera.far = 10000;
+    this.activeCamera.updateProjectionMatrix();
+    this.composer && this.composer.reset();
+    this.setupFXComposer();
+  }
+
+  setupFXComposer() {
     this.composer = new EffectComposer(this.renderer);
     const copyShader = new ShaderPass(CopyShader);
+    const fxaaPass = new ShaderPass( FXAAShader );
+
     copyShader.renderToScreen = true;
-    this.fxaaPass = new ShaderPass( FXAAShader );
-    const bloomPass = new UnrealBloomPass(
-      new Vector2(window.innerWidth, window.innerHeight),
-      this.bloomParams.strength, this.bloomParams.radius, this.bloomParams.threshold
-    );
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(this.fxaaPass);
-    this.composer.addPass(bloomPass);
+    fxaaPass.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+
+    this.composer.addPass(new RenderPass(this.scene, this.activeCamera));
+    this.composer.addPass(fxaaPass);
+    // this.composer.addPass(new UnrealBloomPass(
+    //   new Vector2(window.innerWidth, window.innerHeight),
+    //   this.bloomParams.strength, this.bloomParams.radius, this.bloomParams.threshold
+    // ));
     this.composer.addPass(copyShader);
-    this.renderer.gammaInput = true;
-    this.renderer.gammaOutput = true;
-    this.renderer.toneMappingExposure = Uncharted2ToneMapping;
-    this.renderer.exposure = 1;
   }
 
   resize = () => {
-    console.log('resize');
-    if (this.fxaaPass) {
-      this.fxaaPass.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
-    }
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.camera.aspect = window.innerWidth / window.innerHeight;
-    this.camera.updateProjectionMatrix();
+    this.defaultCamera.aspect = window.innerWidth / window.innerHeight;
+    this.defaultCamera.updateProjectionMatrix();
+    this.activeCamera.aspect = window.innerWidth / window.innerHeight;
+    this.activeCamera.updateProjectionMatrix();
+    this.composer && this.composer.reset();
+    this.setupFXComposer();
   };
 
   render = (dt) => {
-    if (this.controls) {
-      this.controls.update();
-    }
-    if ( this.mixers.length > 0 ) {
-      for (let i=0;i<this.mixers.length;i++) {
-        console.log('mixer', i , this.mixers[i]);
-        this.mixers[ i ].update( this.clock.getDelta() );
-      }
-    }
+    this.controls && this.controls.update();
+    this.mixer && this.mixer.update( this.clock.getDelta() );
     if (this.composer) {
       this.composer.render();
     } else {
-      this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.activeCamera);
     }
   };
 }
