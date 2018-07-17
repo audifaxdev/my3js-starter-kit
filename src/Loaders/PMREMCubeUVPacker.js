@@ -18,7 +18,7 @@ class PMREMCubeUVPacker {
   // cubeLods: any;
   // numLods: any;
   // CubeUVRenderTarget: any;
-  // camera: any;
+  // defaultCamera: any;
   // scene: any;
   // objects: any;
 

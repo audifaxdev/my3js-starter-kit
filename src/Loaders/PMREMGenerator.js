@@ -20,7 +20,7 @@ class PMREMGenerator {
   // samplesPerLevel: any;
   // cubeLods: any;
   // numLods: any;
-  // camera: any;
+  // defaultCamera: any;
   // shader: any;
   // planeMesh: any;
   // scene: any;

@@ -1844,7 +1844,7 @@ export default ( function () {
           break;
 
         default:
-          console.warn( 'THREE.FBXLoader: Unknown camera type ' + type + '.' );
+          console.warn( 'THREE.FBXLoader: Unknown defaultCamera type ' + type + '.' );
           model = new THREE.Object3D();
           break;
 

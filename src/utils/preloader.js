@@ -1,6 +1,12 @@
-import { JSONLoader, TextureLoader, FontLoader } from 'three';
+import {
+  JSONLoader,
+  TextureLoader,
+  FontLoader,
+  UnsignedByteType
+} from 'three';
 import GLTFLoader from 'three-gltf-loader';
 import FBXLoader from '../loaders/FBXLoader';
+import HDRCubeTextureLoader from '../Loaders/HDRCubeTextureLoader';
 /**
 
  ```
@@ -40,6 +46,7 @@ class Preloader {
   // manifest: Asset[];
 
   constructor () {
+    this.hdrCubeLoader = new HDRCubeTextureLoader();
     this.gltfLoader = new GLTFLoader();
     this.fbxLoader = new FBXLoader();
     this.jsonLoader = new JSONLoader();
@@ -55,6 +62,20 @@ class Preloader {
   }
 
   start (onComplete) {
+    this.getManifestByType('HDRCubeMap').forEach((value) => {
+      console.log(value);
+      value.isLoaded = false;
+      this.hdrCubeLoader.load(
+        UnsignedByteType, value.url, ( hdrCubeMap ) => {
+        value.isLoaded = true;
+        value.hdrCubeMap = hdrCubeMap;
+        if (this.checkManifestCompletion()) {
+          onComplete();
+        }
+      });
+    });
+
+
     this.getManifestByType('JsonModel').forEach((value) => {
       value.isLoaded = false;
       this.jsonLoader.load(value.url, (object3d) => {
@@ -135,6 +156,18 @@ class Preloader {
     }
     return true
   }
+
+  getHDRCubeMap (id) {
+    let item = this.manifest.filter((value) => {
+      return value.id === id
+    })[0];
+
+    if (item && item.hdrCubeMap) {
+      return item.hdrCubeMap;
+    }
+    return null;
+  }
+
 
   getObject3d (id) {
     let item = this.manifest.filter((value) => {

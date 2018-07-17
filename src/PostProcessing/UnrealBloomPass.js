@@ -26,7 +26,7 @@ class UnrealBloomPass extends Pass {
   // materialCopy: any;
   // oldClearColor: any;
   // oldClearAlpha: any;
-  // camera: any;
+  // defaultCamera: any;
   // scene: any;
   // quad: any;
 
