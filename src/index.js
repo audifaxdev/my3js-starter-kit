@@ -18,6 +18,7 @@ import {
   SmoothShading,
   LinearEncoding,
   AnimationMixer,
+  AnimationAction,
   QuaternionKeyframeTrack,
   AnimationClip,
   KeyframeTrack,
@@ -297,17 +298,17 @@ class Application {
     this.clips = clips;
     if (!clips.length) return;
 
-    let cubeRotation = this.clips.filter((clip) => clip.name.startsWith('CubeRotation'));
+    // let cubeRotation = this.clips.filter((clip) => clip.name.startsWith('CubeRotation'));
     let cubeScale = this.clips.filter((clip) => clip.name.startsWith('CubeScale'));
 
     let cube = this.content.getObjectByName('Cube');
-    this.addAnimation(
-      'cubeRotation', cubeRotation, new AnimationMixer(cube), (action) => {
-        return action.reset().setEffectiveTimeScale(1).setLoop(LoopRepeat);
-    });
+    // this.addAnimation(
+    //   'cubeRotation', cubeRotation, new AnimationMixer(cube), (action) => {
+    //     return action.reset().setEffectiveTimeScale(1).setLoop(LoopPingPong);
+    // });
     this.addAnimation(
       'cubeScale', cubeScale, new AnimationMixer(cube), (action) => {
-        return action.reset().setEffectiveTimeScale(1).setLoop(LoopRepeat);
+        return action.reset().setEffectiveTimeScale(1).setLoop(LoopPingPong);
     });
   }
 
