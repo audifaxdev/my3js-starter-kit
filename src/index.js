@@ -25,7 +25,8 @@ import {
   HemisphereLight,
   AmbientLight,
   DirectionalLight,
-  Raycaster
+  Raycaster,
+  AnimationUtils,
 } from 'three';
 import FXAAShader from './PostProcessing/FXAAShader';
 import OrbitControls from './controls/OrbitControls';
@@ -44,7 +45,6 @@ import { find, cloneDeep, map } from "lodash";
 
 const DEBUG = true;
 const DEFAULT_CAMERA = '[default]';
-const actionsinGUI = [];
 
 const traverseMaterials = (object, callback) => {
   object.traverse((node) => {
@@ -60,36 +60,38 @@ class Animation {
   constructor(args) {
     const {
       name,
-      clips,
-      mixer,
+      actions,
       prepare
     } = args;
     this.name = name || '';
     this.actions = [];
-    this.clips = clips || [];
-    this.prepare = prepare || function () {};
+    this.prepare = prepare || ((action) => action);
     this.playing = false;
-    this.mixer = mixer;
-    this.clock = new Clock(false);
-    this.actions = map(this.clips, (clip) => this.mixer.clipAction(clip));
+    this.actions = actions;
   }
+
+  fadeIn(duration = 1) {
+    this.actions.forEach((action) => this.prepare(action).fadeIn(duration).play());
+    this.paused = false;
+  }
+
+  fadeOut(duration = 1) {
+    this.actions.forEach((action) => this.prepare(action).fadeOut(duration).play());
+    this.paused = false;
+  }
+
 
   play() {
     this.actions.forEach((action) => this.prepare(action).play());
-    this.clock.start();
+    this.paused = false;
   }
   stop() {
     this.actions.forEach((action) => action.stop());
-    this.clock.stop();
+    this.paused = true;
   }
   togglePause() {
     this.paused = !this.paused;
     this.actions.forEach((action) => action.paused = this.paused);
-    if (this.paused) {
-      this.clock.stop();
-    } else {
-      this.clock.start();
-    }
   }
 }
 
@@ -161,6 +163,7 @@ class Application {
 
     window.addEventListener("resize", this.resize);
     window.addEventListener("mousemove", this.mouseMove);
+    window.addEventListener("click", this.mouseClick);
     loop(this.render).start();
     this.resize();
 
@@ -172,7 +175,9 @@ class Application {
       const clips = gltf.animations || [];
       this.setContent(scene, clips, cameras);
 
-      console.log({gltf});
+      let sorted = gltf.animations.sort((a, b) => a.name.localeCompare(b.name));
+
+        console.log({sorted});
     });
   }
 
@@ -188,6 +193,13 @@ class Application {
     let newEnvMap = this.hdrCubeRenderTarget ? this.hdrCubeRenderTarget.texture : null;
     if (!newEnvMap) return;
     traverseMaterials(this.scene, (material) => {
+      switch (material.name) {
+        case "Cube Main":
+        case "Center Strip":
+          return;
+        default:
+          break;
+      }
       if (material.isMeshStandardMaterial || material.isGLTFSpecularGlossinessMaterial) {
         material.envMap = newEnvMap;
         material.needsUpdate = true;
@@ -280,9 +292,9 @@ class Application {
     this.scene.add( light2 );
   }
 
-  addAnimation(animationName, animationClips, mixer, prepareCallback) {
-    this.animations[animationName] = new Animation({
-      name: animationName, clips: animationClips, mixer: mixer, prepare: prepareCallback
+  addAnimation(name, actions, prepare) {
+    this.animations[name] = new Animation({
+      name, actions, prepare
     });
   }
 
@@ -298,17 +310,21 @@ class Application {
     this.clips = clips;
     if (!clips.length) return;
 
-    // let cubeRotation = this.clips.filter((clip) => clip.name.startsWith('CubeRotation'));
-    let cubeScale = this.clips.filter((clip) => clip.name.startsWith('CubeScale'));
+    let cornerAnimations = this.clips.filter((clip) =>
+      clip.name.startsWith('3-Side_corner')||clip.name.startsWith('2-Side_corner'));
 
-    let cube = this.content.getObjectByName('Cube');
-    // this.addAnimation(
-    //   'cubeRotation', cubeRotation, new AnimationMixer(cube), (action) => {
-    //     return action.reset().setEffectiveTimeScale(1).setLoop(LoopPingPong);
-    // });
+    let floatingAnimation = cornerAnimations.filter((clip) => clip.name.includes('float'));
+    let mainAnimation = cornerAnimations.filter((clip) => clip.name.includes('main'));
+
+    // console.log({floatingAnimation, mainAnimation});
+
     this.addAnimation(
-      'cubeScale', cubeScale, new AnimationMixer(cube), (action) => {
-        return action.reset().setEffectiveTimeScale(1).setLoop(LoopPingPong);
+      'float', map(floatingAnimation, (clip) => this.mixer.clipAction(clip)), (action) => {
+        return action.reset().setEffectiveTimeScale(.2).setLoop(LoopRepeat);
+    });
+    this.addAnimation(
+      'main', map(mainAnimation, (clip) => this.mixer.clipAction(clip)), (action) => {
+        return action.reset().setEffectiveTimeScale(.5).setLoop(LoopRepeat);
     });
   }
 
@@ -355,15 +371,11 @@ class Application {
     });
   }
 
-
-
   addGUI() {
-    // let clips = this.clips.filter((clip) => !actionsinGUI.length || actionsinGUI.includes(clip.name));
-    console.log({
-      animations: this.animations
-    });
     Object.entries(this.animations).forEach((action) => {
       Gui.add(action[1], 'play', {label: `${action[0]}.play()`});
+      Gui.add(action[1], 'fadeIn', {label: `${action[0]}.fadeIn()`});
+      Gui.add(action[1], 'fadeOut', {label: `${action[0]}.fadeOut()`});
       Gui.add(action[1], 'togglePause', {label: `${action[0]}.togglePause()`});
       Gui.add(action[1], 'stop', {label: `${action[0]}.stop()`});
     });
@@ -373,9 +385,13 @@ class Application {
     if (!this.clips || !Array.isArray(this.clips)) return;
     this.mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+  };
+
+  mouseClick = (event) => {
     this.raycaster.setFromCamera( this.mouse, this.activeCamera );
     let intersects = this.raycaster.intersectObjects( this.scene.children, true );
     if (Array.isArray(intersects) && intersects.length) {
+      console.log(intersects);
       if (!this.mouseOverCube) {
         //start animation
         // this.fadeInAllClips();
@@ -402,11 +418,12 @@ class Application {
 
   render = (dt) => {
     this.controls && this.controls.update();
-    if (this.animations) {
-      Object.entries(this.animations).forEach((anim) => {
-        anim[1].mixer.update(anim[1].clock.getDelta());
-      });
-    }
+    this.mixer && this.mixer.update(this.clock.getDelta());
+    // if (this.animations) {
+    //   Object.entries(this.animations).forEach((anim) => {
+    //     anim[1].mixer.update(anim[1].clock.getDelta());
+    //   });
+    // }
 
     if (this.composer) {
       this.composer.render();
