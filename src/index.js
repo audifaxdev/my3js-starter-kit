@@ -7,44 +7,60 @@ import {
   Vector3,
   AxesHelper,
   MeshStandardMaterial,
+  MeshLambertMaterial,
   Mesh,
   SphereGeometry,
-  LoopOnce,
-  LoopPingPong,
   LoopRepeat,
   sRGBEncoding,
-  Clock,
-  Uncharted2ToneMapping,
-  SmoothShading,
-  LinearEncoding,
   AnimationMixer,
   AnimationAction,
-  QuaternionKeyframeTrack,
-  AnimationClip,
-  KeyframeTrack,
   HemisphereLight,
   AmbientLight,
   DirectionalLight,
   Raycaster,
-  AnimationUtils,
 } from 'three';
+import * as THREE from 'three';
+import EffectComposer, {
+  RenderPass,
+  ShaderPass,
+  CopyShader
+} from 'three-effectcomposer-es6';
+import * as CANNON from 'cannon';
+import loop from 'raf-loop';
+import resize from 'brindille-resize';
+import { TimelineLite } from 'gsap';
+import { find, cloneDeep, map, filter, zipObject } from "lodash";
+import * as dat from 'dat-gui';
+import Stats from 'stats-js';
+import palette from 'google-palette';
+
+const OrbitControls = require('three-orbit-controls')(THREE);
+const SplitText = require( './gsap-bonus/umd/SplitText');
+
 import FXAAShader from './PostProcessing/FXAAShader';
-import OrbitControls from './controls/OrbitControls';
 import PMREMGenerator from './Loaders/PMREMGenerator';
 import PMREMCubeUVPacker from './Loaders/PMREMCubeUVPacker';
 import UnrealBloomPass from './PostProcessing/UnrealBloomPass';
 import BloomBlendPass from './PostProcessing/BloomBlendPass';
-import EffectComposer, { RenderPass, ShaderPass, CopyShader } from 'three-effectcomposer-es6';
-import loop from 'raf-loop';
-import resize from 'brindille-resize';
-import { TimelineMax } from 'gsap';
 import preloader from './utils/preloader';
 import manifest from './assets';
-import Gui from "guigui";
-import { find, cloneDeep, map } from "lodash";
 
-const DEBUG = true;
+const DEBUG = false;
 const DEFAULT_CAMERA = '[default]';
+
+const randomColor = () => {
+  let r = randomIntVal(256);
+  let g = randomIntVal(256);
+  let b = randomIntVal(256);
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
+const mapRange = (num, in_min, in_max, out_min, out_max) => {
+  return (num - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+};
+const randomIntVal = (max) => {
+  return Math.round((Math.random()*max) );
+};
 
 const traverseMaterials = (object, callback) => {
   object.traverse((node) => {
@@ -56,64 +72,123 @@ const traverseMaterials = (object, callback) => {
   });
 };
 
-class Animation {
-  constructor(args) {
-    const {
-      name,
-      actions,
-      prepare
-    } = args;
-    this.name = name || '';
-    this.actions = [];
-    this.prepare = prepare || ((action) => action);
-    this.playing = false;
-    this.actions = actions;
-  }
+let developers = [
+  {name: 'Alpha', srcAvatar: './dist/img/alpha.png', image: null, selected: true, color: randomColor()},
+  {name: 'Beta', srcAvatar: './dist/img/beta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Gamma', srcAvatar: './dist/img/gamma.png', image: null, selected: true, color: randomColor()},
+  {name: 'Delta', srcAvatar: './dist/img/delta.gif', image: null, selected: true, color: randomColor()},
+  {name: 'Epsilon', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Zeta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Eta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Theta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Iota', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Kappa', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Lambda', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Mu', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Nu', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Xi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Omicron', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Pi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Rho', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Sigma', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Tau', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Upsilon', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Phi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Chi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Psi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Omega', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'One', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Two', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Three', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Five', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Height', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {name: 'Thirteen', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+];
 
-  fadeIn(duration = 1) {
-    this.actions.forEach((action) => this.prepare(action).fadeIn(duration).play());
-    this.paused = false;
+let defaultCfg = {
+  physicWorld: {
+    step: 1/600,
+    subStep: 10,
+    gravity: 9.82,
+    solverIteration: 10,
+    contactEquationRelaxation: 1,
+    frictionEquationRelaxation: 1
+  },
+  container: {
+    radius: 20,
+    height: 10,
+    nbBars: 30,
+    barSize: {
+      x: .5, y: 1, z: 4
+    },
+    markBarHeight: .95,
+    currentRotation: 0
+  },
+  ball: {
+    radius: 3,
+    mass: 5,
+    sleepTimeLimit: .5,
+    sleepSpeedLimit: .1,
+    linearDamping: .01
   }
+};
 
-  fadeOut(duration = 1) {
-    this.actions.forEach((action) => this.prepare(action).fadeOut(duration).play());
-    this.paused = false;
-  }
-
-
-  play() {
-    this.actions.forEach((action) => this.prepare(action).play());
-    this.paused = false;
-  }
-  stop() {
-    this.actions.forEach((action) => action.stop());
-    this.paused = true;
-  }
-  togglePause() {
-    this.paused = !this.paused;
-    this.actions.forEach((action) => action.paused = this.paused);
-  }
-}
+let bloomParams = {
+  strength: .5,
+  // strength: .5,
+  radius: .4,
+  // radius: .25,
+  threshold: .85
+  // threshold: .85
+};
 
 class Application {
   constructor() {
-    this.bloomParams = {
-      // strength: .15,
-      strength: .3,
-      // radius: .1,
-      radius: .3,
-      // threshold: .85
-      threshold: .85
-    };
+    this.free();
+    this.init();
+  }
 
-    this.state = {
-      actionStates: {}
+  free(){
+    this.scene = null;
+    this.renderer = null;
+    this.camera = null;
+    this.composer = null;
+  }
+
+  refresh () {
+
+  }
+
+  init() {
+    this.gameStats = {
+      players: zipObject(map(developers, dev => dev.name), map(developers, () => 0)),
+      total: 0
     };
+    this.lightsMode = 2;
+    this.polarCoord = 0.0;
+    this.palette = palette('tol-rainbow', 30);
+    console.log('palette', this.palette);
+    this.barGlowOffset = 0;
+    this.cfg = defaultCfg;
+    this.hdrMaterials = [];
+    this.materials = {};
+    this.currentWinner = null;
+    this.mouse = new Vector2();
+    this.raycaster = new Raycaster();
+    this.scene = new Scene();
+    this.fbo1 = document.createElement('canvas');
+    this.fbo1.width = 512;
+    this.fbo1.height = 512;
+    this.fbo2 = document.createElement('canvas');
+    this.fbo2.width = 512;
+    this.fbo2.height = 512;
+    this.renderFns = [];
+
     this.container = document.body;
     this.renderer = new WebGLRenderer({
       antialias: true,
     });
-    this.renderer.setClearColor(0xcccccc);
+    this.renderer.setClearColor(0x000000);
     this.renderer.gammaInput = true;
     this.renderer.gammaOutput = true;
     // this.renderer.toneMappingExposure = Uncharted2ToneMapping;-
@@ -123,30 +198,33 @@ class Application {
     this.container.appendChild(this.renderer.domElement);
 
     this.composer = null;
-    this.scene = new Scene();
     this.defaultCamera = new PerspectiveCamera(50, resize.width / resize.height, 0.01, 10000);
-    this.defaultCamera.position.set(10, 10, 10);
-    this.defaultCamera.lookAt(0, 0, 0,);
+    this.defaultCamera.position.set(0, 0, -50);
+    this.defaultCamera.lookAt(new THREE.Vector3(0,0,0));
     this.scene.add(this.defaultCamera);
     this.activeCamera = this.defaultCamera;
-    this.mouse = new Vector2();
-    this.raycaster = new Raycaster();
-    this.mouseOverCube = false;
-    this.clock = new Clock();
-    this.animations = {};
 
-    this.controls = new OrbitControls(this.defaultCamera, {
-      element: this.renderer.domElement,
-      parent: this.renderer.domElement,
-      zoomSpeed: 0.01,
-      phi: 1.6924580040804253,
-      theta: 0.9016370915802706,
-      damping: 0.25,
-      distance: 30
-    });
+    this.controls = new OrbitControls(this.defaultCamera, this.renderer.domElement);
+    // this.controls = new OrbitControls(this.defaultCamera, {
+    //   element: this.renderer.domElement,
+    //   parent: this.renderer.domElement,
+    //   zoomSpeed: 0.01,
+      // phi: 0,
+      // theta: Math.PI,
+      // damping: 0.25,
+      // distance: 50
+    // });
 
+    this.renderer.shadowMap.enabled = true;
 
     if (DEBUG) {
+      this.stats = new Stats();
+      // this.stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+      this.stats.setMode(0);
+      if (this.stats.domElement) {
+        this.stats.domElement.className = 'stats';
+        document.body.appendChild( this.stats.domElement );
+      }
       this.scene.add(new AxesHelper(5000));
       let ball = new Mesh( new SphereGeometry( 10, 32, 32 ), new MeshStandardMaterial({
         map: null,
@@ -154,7 +232,7 @@ class Application {
         metalness: 1,
         roughness: .2,
         bumpScale: -1,
-        flatShading: true
+        // flatShading: true
       }) );
       ball.name = 'DaBall';
       ball.position.set(0, 100, 0);
@@ -164,21 +242,361 @@ class Application {
     window.addEventListener("resize", this.resize);
     window.addEventListener("mousemove", this.mouseMove);
     window.addEventListener("click", this.mouseClick);
-    loop(this.render).start();
     this.resize();
 
+    this.setupMeshes();
+    this.setupPhysicalWorld();
+
     preloader.load(manifest, () => {
+
       this.setupHdrCubeRenderTarget(preloader.getHDRCubeMap('hdrCube'));
-      const gltf = preloader.getObject3d('scene');
-      const scene = gltf.scene || gltf.scenes[0] || [];
-      const cameras = gltf.cameras || [];
-      const clips = gltf.animations || [];
-      this.setContent(scene, clips, cameras);
+      this.updateHdrMaterialEnvMap();
 
-      let sorted = gltf.animations.sort((a, b) => a.name.localeCompare(b.name));
-
-        console.log({sorted});
+      loop(this.render).start();
+      window.addEventListener('keydown', this.keyPressed);
+      this.showText("Press Space to Start!", null);
     });
+
+    if (DEBUG) {
+      this.gui = new dat.GUI();
+
+      developers.forEach((developer) => {
+        this.gui.add(developer, 'selected').name(developer.name).onChange(this.refresh.bind(this));
+      });
+      this.gui.add(this.cfg.container, 'currentRotation', -4*Math.PI, 4*Math.PI).onChange(this.tweenWheel);
+      this.gui.add({startGame: this.startGame}, 'startGame');
+      this.gui.add(this.materials.diskmaterial.uniforms.blending, 'value', 0, 1);
+
+    }
+    setInterval(() => {
+      if (this.barGlowOffset === this.cfg.container.nbBars - 1) {
+        this.barGlowOffset = 0;
+      } else {
+        this.barGlowOffset++;
+      }
+    }, 1000/24);
+
+    this.renderFns.push(this.updateTexture, this.computeCurrentWinner, this.updatePhysicalWorld);
+
+  }
+
+  createMaterials() {
+
+    this.texture = new THREE.CanvasTexture(this.fbo1, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping);
+    this.texture.minFilter = THREE.LinearFilter;
+    this.texture.magFilter = THREE.LinearFilter;
+    this.texture.format = THREE.RGBFormat;
+
+    this.emissiveTexture = new THREE.CanvasTexture(this.fbo2, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping);
+    this.emissiveTexture.minFilter = THREE.LinearFilter;
+    this.emissiveTexture.magFilter = THREE.LinearFilter;
+    this.emissiveTexture.format = THREE.RGBFormat;
+    // let material = new THREE.MeshBasicMaterial({ map: texture });
+
+    let cylMaterial = new THREE.MeshStandardMaterial({
+      color: randomColor(), side: THREE.DoubleSide, metalness: .5, roughness: .7
+    });
+
+    // let diskmaterial = new THREE.MeshBasicMaterial({
+    //   // metalness: .5, roughness: .7, roughnessMap: null, metalnessMap: null,
+    //    color: 0xffffff,  map: this.texture,
+    //   side: THREE.DoubleSide,
+    //   emissiveMap: this.texture, emissiveIntensity: .5, emissive: 'white'
+    // });
+
+    let resolution = this.renderer.getSize();
+
+
+    let glslPalette = new Float32Array(30*3);
+    this.palette.forEach((col, index) => {
+      let colObj = new THREE.Color(`#${col}`);
+      glslPalette[index*3] = colObj.r;
+      glslPalette[index*3 + 1] = colObj.g;
+      glslPalette[index*3 + 2] = colObj.b;
+    });
+    console.log('glslPalette', glslPalette);
+
+
+    var diskmaterial = new THREE.ShaderMaterial( {
+      side: THREE.DoubleSide,
+      uniforms: {
+        time: {value: 1.0},
+        palette: new THREE.Uniform(glslPalette),
+        blending: {value: .39},
+        resolution: new THREE.Uniform(new THREE.Vector2(resolution.width, resolution.height)),
+        texture: new THREE.Uniform(this.texture)
+      },
+      vertexShader: `
+      varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+      `,
+      fragmentShader: `
+      #define M_PI 3.1415926535897932384626433832795
+      uniform vec3 palette[30];
+      uniform float blending;
+      uniform float time;
+      uniform vec2 resolution;
+      uniform sampler2D texture;
+      varying vec2 vUv;
+      
+      float speed = 0.035;
+      vec2 center = vec2(.5, .5);
+      float slice = 2.0*M_PI / 30.0;
+      
+      vec3 getColor(int id) {
+          // if (id >= 30) {
+          //   id = 59 - id;
+          // }
+          for (int i=0; i<30; i++) {
+              if (i == id) return palette[i];
+          }
+      }
+      
+      vec4 blendColors(vec4 col1, float weight1, vec4 col2, float weight2) {
+        return ((weight1*col1) + (weight2*col2)) / (weight1 + weight2);
+      }
+      
+      void main() {
+        // Normalized pixel coordinates (from 0 to 1)
+        vec2 uv = gl_FragCoord.xy/resolution.xy;
+        float invFac = resolution.y / resolution.x;
+        
+        float sinTime = 0.5+0.25*sin(time);        
+                
+        float angle = atan(.5-vUv.y, .5-vUv.x) - M_PI;
+        if (angle < 0.0) {
+          angle = angle + 2.0*M_PI;
+        }
+        float fract = angle / slice;
+        int sliceIndex = int(fract);
+        float remain = fract - float(sliceIndex);
+        
+        vec3 col1 = getColor(sliceIndex);
+        vec3 col2 = getColor(sliceIndex+1);
+        vec3 col = blendColors(vec4(col1.xyz, 1.0), (1.0-remain), vec4(col2.xyz, 1.0), remain).xyz;
+        
+        float x = (center.x-vUv.x);
+        float y = (center.y-vUv.y);
+        
+        float rippleOffset = speed * time;
+        
+        float r = -sqrt(x*x + y*y);
+        // float r = -(x*x + y*y);
+        float z = 1.0 + .5 * sin((r + rippleOffset)/ 0.013);
+        
+        vec4 ripples =  vec4(col*vec3(z,z,z), 1.0);
+        vec4 labels =  texture2D(texture, vUv.xy);
+        gl_FragColor = blendColors(ripples, blending*10.0, labels, ((1.0 - blending)*10.0));
+      }
+      `
+    });
+
+    diskmaterial.transparent = true;
+
+    let sMaterial = new THREE.MeshStandardMaterial({
+      name: 'sMaterial',
+      map: null,
+      color: 0xffffff,
+      metalness: 1,
+      roughness: .61,
+      bumpScale: -1,
+    });
+
+    let barMaterials = [];
+    for (let i = 0; i < this.cfg.container.nbBars; i++) {
+      barMaterials.push(new THREE.MeshStandardMaterial({
+        name: `barMaterial-${i}`,
+        emissive: `#${this.palette[i]}`,
+        // emissive: new THREE.Color(randomColor()),
+        emissiveIntensity: 0,
+        // emissive: new THREE.Color('rgb(256, 0 , 0)'),
+        map: null,
+        color: 0xffffff,
+        metalness: 1,
+        roughness: .61,
+        bumpScale: -1,
+      }));
+    }
+
+    this.hdrMaterials = [
+      sMaterial, ...barMaterials, cylMaterial
+    ];
+
+    this.materials = {
+      sMaterial, cylMaterial, barMaterials, diskmaterial
+    };
+
+    this.renderFns.push((dt) => {
+      this.materials.diskmaterial.uniforms.time.value += .05;
+      if (this.lightsMode === 0) return;
+      if (this.lightsMode === 1) {
+        let slice = 2*Math.PI/this.cfg.container.nbBars;
+        this.materials.barMaterials.forEach((barMat, index) => {
+          // let ratio = this.barGlowOffset + index+1 / this.cfg.container.nbBars;
+          // barMat.emissiveIntensity = Math.sin( (ratio*Math.PI/4)) * .5 + .5;
+          let ballIndex = Math.floor(this.polarCoord / slice);
+          if (ballIndex === index || ballIndex+1 === index) {
+            barMat.emissiveIntensity = 1;
+          } else if (index === ballIndex-1 || index === ballIndex+2) {
+            barMat.emissiveIntensity = .2;
+          } else if (index === ballIndex-1 || index === ballIndex+2) {
+            barMat.emissiveIntensity = .1;
+          }  else {
+            barMat.emissiveIntensity = 0;
+          }
+          barMat.needsUpdate = true;
+        });
+      } else if (this.lightsMode === 2) {
+        this.materials.barMaterials.forEach((barMat, index) => {
+          let ratio = this.barGlowOffset + index+1 / this.cfg.container.nbBars;
+          barMat.emissiveIntensity = Math.sin( (ratio*Math.PI/4)) * .5 + .5;
+          barMat.needsUpdate = true;
+        });
+      }
+    })
+  }
+
+  setupMeshes() {
+    this.createMaterials();
+
+    let cfgBall = this.cfg.ball;
+
+    let geometry = new THREE.CircleGeometry( this.cfg.container.radius, 32, 0, 2*Math.PI );
+
+    let cylinderGeometry = new THREE.CylinderGeometry(
+      this.cfg.container.radius, this.cfg.container.radius, this.cfg.container.height, 32, 4, true
+    );
+
+    let cylinder = new THREE.Mesh(cylinderGeometry, this.materials.cylMaterial);
+    cylinder.position.set(0, 0, 0);
+    cylinder.rotateX(Math.PI/2);
+
+    this.wheel = new THREE.Object3D();
+    this.wheel.add(cylinder);
+    this.scene.add(this.wheel);
+
+    this.circle = new THREE.Mesh( geometry, this.materials.diskmaterial );
+    this.circle.position.set(0, 0, this.cfg.container.height/2);
+    this.circle.rotation.set(Math.PI, 0, 0);
+    this.wheel.add(this.circle);
+
+    let sGeometry = new THREE.SphereGeometry( cfgBall.radius, 32, 32 );
+
+    this.ball = new THREE.Mesh( sGeometry, this.materials.sMaterial );
+    this.scene.add( this.ball );
+  }
+
+  setupPhysicalWorld() {
+    let cfgContainer = this.cfg.container;
+    let cfgBall = this.cfg.ball;
+
+    this.cannonWorld = new CANNON.World();
+    this.cannonWorld.allowSleep = true;
+    this.cannonWorld.quatNormalizeSkip = 0;
+    this.cannonWorld.quatNormalizeFast = false;
+
+    let solver = new CANNON.GSSolver();
+    solver.iterations = 10;
+    solver.tolerance = 0.2;
+    this.cannonWorld.solver = solver;
+    this.cannonWorld.gravity.set(0,-25,0);
+    this.cannonWorld.broadphase = new CANNON.NaiveBroadphase();
+
+    this.cannonWorld.defaultContactMaterial.contactEquationStiffness = 1e5;
+    this.cannonWorld.defaultContactMaterial.contactEquationRegularizationTime = 4;
+
+    let physicsMaterial = new CANNON.Material("slipperyMaterial");
+    let boxPhysicsMaterial = new CANNON.Material("boxMaterial");
+    let boxContactMaterial = new CANNON.ContactMaterial(physicsMaterial,
+      boxPhysicsMaterial,
+      {friction: 0, restitution: 0.9}
+    );
+    let bumpy_ground = new CANNON.ContactMaterial(physicsMaterial,
+      physicsMaterial,
+      {friction: 0.4, restitution: 0.9}
+    );
+
+    this.cannonWorld.addContactMaterial(boxContactMaterial);
+    this.cannonWorld.addContactMaterial(bumpy_ground);
+
+    let sphereShape = new CANNON.Sphere(cfgBall.radius);
+    this.sphereBody = new CANNON.Body({mass: cfgBall.mass, shape: sphereShape, material: boxPhysicsMaterial.id});
+    this.sphereBody.allowSleep = false;
+    this.sphereBody.sleepSpeedLimit = .005; // Body will feel sleepy if speed<1 (speed == norm of velocity)
+    this.sphereBody.sleepTimeLimit = 1; // Body falls asleep after 1s of sleepiness
+    this.sphereBody.addEventListener("sleep", this.onBallAsleep);
+    // this.sphereBody.sleepTimeLimit = cfgBall.sleepTimeLimit;
+    // this.sphereBody.sleepSpeedLimit = cfgBall.sleepSpeedLimit;
+    // this.sphereBody.linearDamping = cfgBall.linearDamping;
+
+
+    this.cannonWorld.addBody(this.sphereBody);
+
+    //build container
+    let planeShapeMinZ = new CANNON.Plane();
+    let planeShapeMaxZ = new CANNON.Plane();
+    let planeZMin = new CANNON.Body({mass: 0, material: physicsMaterial.id});
+    let planeZMax = new CANNON.Body({mass: 0, material: physicsMaterial.id});
+
+    planeZMin.allowSleep = true;
+    planeZMin.sleepTimeLimit = 1;
+    planeZMin.sleepSpeedLimit = .5;
+    planeZMin.linearDamping = .01;
+    planeZMax.allowSleep = true;
+    planeZMax.sleepTimeLimit = 1;
+    planeZMax.sleepSpeedLimit = .5;
+    planeZMax.linearDamping = .01;
+
+    // planeZMin.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), Math.PI);
+    planeZMax.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), Math.PI);
+    planeZMin.position.set(0, 0 , -this.cfg.container.height/2);
+    planeZMax.position.set(0, 0, this.cfg.container.height/2);
+
+    planeZMin.addShape(planeShapeMinZ);
+    planeZMax.addShape(planeShapeMaxZ);
+    this.cannonWorld.addBody(planeZMin);
+    this.cannonWorld.addBody(planeZMax);
+
+    this.bars = [];
+
+    let angleFraction = 2*Math.PI / this.cfg.container.nbBars;
+
+    for (let i=0; i< this.cfg.container.nbBars; i++) {
+      let barRadius = i%2 ? cfgContainer.radius*1.02:cfgContainer.radius;
+      let radius = cfgContainer.radius;
+      let angularPos = i * angleFraction;
+
+      let boxShape = new CANNON.Box(new CANNON.Vec3(cfgContainer.barSize.y, cfgContainer.barSize.x, cfgContainer.barSize.z));
+      let cylinderBody = new CANNON.Body({mass: 0, material: physicsMaterial.id});
+      cylinderBody.allowSleep = true;
+      cylinderBody.addShape(boxShape);
+      cylinderBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), angularPos);
+      cylinderBody.position.set((barRadius)*Math.cos(angularPos), (barRadius)*Math.sin(angularPos), 0);
+
+      let bumpBoxGeometry = new THREE.BoxGeometry(2*cfgContainer.barSize.y, 2*cfgContainer.barSize.x, 2*cfgContainer.barSize.z);
+      let bumpBoxMesh = new THREE.Mesh(bumpBoxGeometry, this.materials.barMaterials[i]);
+
+      this.syncMeshWithBody(bumpBoxMesh, cylinderBody);
+
+      this.wheel.add(bumpBoxMesh);
+
+      let wall = new CANNON.Plane();
+      let wallBody = new CANNON.Body({mass: 0, material: physicsMaterial.id});
+      wallBody.addShape(wall);
+      wallBody.position.set((radius)*Math.cos(angularPos), (radius)*Math.sin(angularPos), 0);
+      wallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI/2);
+      let rotation = new CANNON.Quaternion();
+      rotation.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), +3*Math.PI/2 - angularPos);
+      wallBody.quaternion.copy(wallBody.quaternion.mult(rotation));
+
+      this.cannonWorld.addBody(cylinderBody);
+      this.cannonWorld.addBody(wallBody);
+      this.bars.push({wall: wallBody, cylinder: cylinderBody, mesh: bumpBoxMesh});
+    }
+    // this.cannonDebugRenderer = new CannonDebugRenderer(this.scene, this.cannonWorld);
   }
 
   setupHdrCubeRenderTarget(hdrCubeMap) {
@@ -192,19 +610,238 @@ class Application {
   updateHdrMaterialEnvMap() {
     let newEnvMap = this.hdrCubeRenderTarget ? this.hdrCubeRenderTarget.texture : null;
     if (!newEnvMap) return;
-    traverseMaterials(this.scene, (material) => {
-      switch (material.name) {
-        case "Cube Main":
-        case "Center Strip":
-          return;
-        default:
-          break;
-      }
-      if (material.isMeshStandardMaterial || material.isGLTFSpecularGlossinessMaterial) {
-        material.envMap = newEnvMap;
-        material.needsUpdate = true;
-      }
+    Object.entries(this.hdrMaterials).forEach((materialName) => {
+      materialName[1].envMap = newEnvMap;
+      materialName[1].needsUpdate = true;
     });
+  };
+
+  keyPressed = (keyDownEvent) => {
+    if (keyDownEvent.keyCode === 32) {
+      this.startGame();
+    }
+  };
+
+  startGame = () => {
+    let cfgContainer = this.cfg.container;
+    this.lightsMode = 1;
+    this.hideText();
+    TweenLite.set('#ui-msg-overlay-2', {display: 'block', opacity: 1});
+
+    let tl = new TimelineLite({onComplete: () => {
+      this.sphereBody.allowSleep = true;
+    }});
+    tl
+      .to(this.materials.diskmaterial.uniforms.blending, .1, {value: 0.1}, 0)
+      .to(cfgContainer, 10 + 10 * (Math.random() * .5 + .5), {
+      currentRotation: '+='+ Math.round((Math.random() * .5 + .5)*600*Math.PI/16),
+      onUpdate: this.tweenWheel
+      }, 0)
+      .add(() => {
+        this.moveBall(3, 3, 0, new CANNON.Vec3(999, 999, 0));
+      }, 0);
+  };
+
+  onBallAsleep = (e) => {
+    console.log('Winner is ', this.currentWinner);
+    this.lightsMode = 2;
+    let tl = new TimelineLite();
+    tl.set('#ui-msg-overlay-2', {opacity:0, display: 'none'});
+    tl.to(this.materials.diskmaterial.uniforms.blending, 1, {value: 0.39}, 0);
+
+    this.gameStats.players[this.currentWinner.name]++;
+    this.gameStats.total++;
+
+    Object.entries(this.gameStats.players).forEach((entry) => {
+      console.log('enrtry', entry);
+      let avr = entry[1] / this.gameStats.total;
+      console.log(`${entry[0]} ${avr*100}%`);
+    });
+
+    this.showText(`Winner is<br>${this.currentWinner.name}`);
+    setTimeout(() => {
+      this.showText("Press Space to Start!", null)
+    }, 10000)
+  };
+
+  showText(text, reverse = '+=5') {
+    let h1 = document.querySelectorAll('#ui-msg-overlay')[0];
+    h1.innerHTML = text;
+    let splitText = new SplitText(h1, {type: "chars, words"});
+    let tl = new TimelineLite();
+    tl.set(h1, {display: 'block'})
+      .to(h1, .1, {opacity: 1})
+      .staggerFrom(splitText.chars, 0.8, {opacity:0, rotation:90, scale:0, y:-60, ease:Back.easeOut}, 0.05, 0.1);
+    if (reverse)
+      tl.add(() => {tl.reverse(0)}, reverse);
+  }
+
+  hideText() {
+    let h1 = document.querySelectorAll('#ui-msg-overlay')[0];
+    let splitText = new SplitText(h1, {type: "chars, words"});
+    let tl = new TimelineLite();
+    tl.set(h1, {display: ''})
+      .to(h1, .1, {opacity: 0});
+  }
+
+  tweenWheel = () => {
+    let cfgContainer = this.cfg.container;
+    let lastTweenTick = new Date().getTime();
+    let angleFraction = 2*Math.PI / cfgContainer.nbBars;
+    let lastAngle = 0;
+
+    // this.circle.rotation.set(0, 0, cfgContainer.currentRotation);
+    this.wheel.quaternion.setFromAxisAngle(new THREE.Vector3(0,0,1), -cfgContainer.currentRotation);
+    this.bars.forEach((bar, i) => {
+
+      let wall = bar.wall;
+      let cylinder = bar.cylinder;
+
+      let angularPos = i * angleFraction;
+      let radius = i%2 ? cfgContainer.radius*1.02:cfgContainer.radius;
+
+      // let radius = cfgContainer.radius;
+      let newX = (cfgContainer.radius)*Math.cos(angularPos + -cfgContainer.currentRotation);
+      let newY = (cfgContainer.radius)*Math.sin(angularPos + -cfgContainer.currentRotation);
+
+      let now = new Date().getTime();
+      // let dt = (lastTweenTick - now);
+      // let angleDiff = cfgContainer.currentRotation - lastAngle;
+      // let tanSpeed = cfgContainer.radius * angleDiff / dt;
+
+      // let tanX = newX*Math.cos(Math.PI/2) - newY * Math.sin(Math.PI/2);
+      // let tanY = newX*Math.sin(Math.PI/2) + newY * Math.cos(Math.PI/2);
+
+      // let circularForce = new CANNON.Vec3( tanX, tanY, 0);
+      // circularForce.normalize();
+      // circularForce.scale(tanSpeed);
+
+      let newX2 = (radius)*Math.cos(angularPos + -cfgContainer.currentRotation);
+      let newY2 = (radius)*Math.sin(angularPos + -cfgContainer.currentRotation);
+
+      // cylinder.velocity = circularForce;
+      cylinder.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), i*angleFraction + -cfgContainer.currentRotation);
+      cylinder.position.set(newX2, newY2, 0);
+
+      wall.position.set(newX, newY, 0);
+      wall.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI/2);
+      let rotation = new CANNON.Quaternion();
+      rotation.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), +3*Math.PI/2 - (angularPos + -cfgContainer.currentRotation));
+      wall.quaternion.copy(wall.quaternion.mult(rotation));
+
+      lastTweenTick = now;
+      lastAngle = cfgContainer.currentRotation;
+    });
+  };
+
+  moveBall(x, y , z, vel = new CANNON.Vec3(999, 999, 999)) {
+    this.sphereBody.position.set(x, y, z);
+    this.sphereBody.velocity = vel;
+    this.syncMeshWithBody(this.ball, this.sphereBody);
+    this.sphereBody.wakeUp();
+  }
+
+  syncMeshWithBody(mesh, body) {
+    mesh.position.copy(body.position);
+    mesh.quaternion.copy(body.quaternion);
+  }
+
+  updateTexture = () => {
+    let ctx1 = this.fbo1.getContext('2d');
+    let xMax = Math.floor(this.fbo1.width);
+    let yMax = Math.floor(this.fbo1.height);
+    let centerX = xMax/2;
+    let centerY = yMax/2;
+    let border = 2;
+    let selectedDevelopers = filter(developers, (el) => el.selected);
+    let angle = 2*Math.PI/selectedDevelopers.length;
+    let i = 0;
+
+    ctx1.clearRect(0, 0, xMax, yMax);
+    ctx1.lineWidth = border;
+    // ctx1.strokeStyle = '#003300';
+    ctx1.strokeStyle = 'white';
+    if (selectedDevelopers.length > 1) {
+      selectedDevelopers.forEach((dev) => {
+        let startAngle = i*angle;
+        let endAngle = (i+1)*angle;
+        let fillStyle = (this.currentWinner === dev) ?
+          'red': i % 2 === 0 ? `#${this.palette[i]}` : 'black';
+        ctx1.save();
+        ctx1.fillStyle = fillStyle;
+        ctx1.beginPath();
+        ctx1.moveTo(centerX, centerY);
+        ctx1.arc(centerX, centerY, -border + centerX, startAngle, endAngle);
+        ctx1.lineTo(centerX, centerY);
+        ctx1.closePath();
+        ctx1.fill();
+        ctx1.stroke();
+        ctx1.restore();
+        ctx1.save();
+        ctx1.fillStyle = "#ffffff";
+        ctx1.font = "26px 'Oswald', sans-serif";
+        ctx1.translate(centerX, centerY);
+        ctx1.rotate(startAngle + angle/2 );
+        ctx1.fillText(dev.name, centerX - ctx1.measureText(dev.name).width - 10, 8);
+        // ctx1.drawImage(dev.image, -35, -centerY + 15, 70, 70);
+        ctx1.restore();
+        i++;
+      });
+    }
+    this.texture.needsUpdate = true;
+    this.materials.diskmaterial.uniforms.texture = new THREE.Uniform(this.texture);
+    this.materials.diskmaterial.needsUpdate = true;
+  };
+
+  computeCurrentWinner = () => {
+    let selectedDevelopers = filter(developers, (el) => el.selected);
+    let angle = 2*Math.PI/selectedDevelopers.length;
+    let i = 0;
+
+    let rayCaster = new Raycaster(this.ball.position, new THREE.Vector3(0, 0, 1));
+    let intersections = rayCaster.intersectObject(this.circle, true);
+
+    if (intersections.length) {
+      let intersect = intersections[0];
+      if (intersect.uv) {
+        let uv = intersect.uv;
+        this.texture.transformUv(uv);
+        this.polarCoord = Math.atan2(.5-uv.y, .5-uv.x) - Math.PI;
+        if (this.polarCoord < 0) {
+          this.polarCoord += 2*Math.PI;
+        }
+        selectedDevelopers.forEach((dev) => {
+          let startAngle = (i*angle);
+          let endAngle = ((i+1)*angle);
+          if (((startAngle <= this.polarCoord) && (this.polarCoord <= endAngle))) {
+            this.setCurrentWinner(dev);
+          }
+          i++;
+        });
+      }
+    }
+  };
+
+  setCurrentWinner(dev) {
+    if (dev !== this.currentWinner) {
+      this.currentWinner = dev;
+      let h2 = document.querySelectorAll('#ui-msg-overlay-2')[0];
+      h2.innerHTML = dev.name;
+    }
+  }
+
+  updatePhysicalWorld = () => {
+    let phxCfg = this.cfg.physicWorld;
+    let now = new Date().getTime();
+    let dt = (now - this.lastTick) / 1000;
+    this.cannonWorld.step(phxCfg.step, dt, phxCfg.subStep);
+    this.lastTick = now;
+
+    //Mesh update
+    this.syncMeshWithBody(this.ball, this.sphereBody);
+    if (this.cannonDebugRenderer) {
+      this.cannonDebugRenderer.update();
+    }
   };
 
   setupFXComposer() {
@@ -217,11 +854,12 @@ class Application {
 
     this.composer.addPass(new RenderPass(this.scene, this.activeCamera));
     this.composer.addPass(fxaaPass);
-    this.composer.addPass(new UnrealBloomPass(
-      new Vector2(window.innerWidth, window.innerHeight),
-      this.bloomParams.strength, this.bloomParams.radius, this.bloomParams.threshold
-    ));
-    // this.composer.addPass(new BloomBlendPass(2.0, .3, new Vector2(window.innerWidth, window.innerHeight)));
+    // this.composer.addPass(new UnrealBloomPass(
+    //   new Vector2(window.innerWidth, window.innerHeight),
+    //   bloomParams.strength, bloomParams.radius, bloomParams.threshold
+    // ));
+    let bloomBlendPass = new BloomBlendPass(3.0, 1, new Vector2(window.innerWidth, window.innerHeight));
+    this.composer.addPass(bloomBlendPass);
     this.composer.addPass(copyShader);
   }
 
@@ -270,7 +908,7 @@ class Application {
     this.addLights();
     this.updateHdrMaterialEnvMap();
     this.updateGeometries();
-    this.updateMaterials();
+    // this.updateMaterials();
 
     this.addGUI();
 
@@ -372,13 +1010,13 @@ class Application {
   }
 
   addGUI() {
-    Object.entries(this.animations).forEach((action) => {
-      Gui.add(action[1], 'play', {label: `${action[0]}.play()`});
-      Gui.add(action[1], 'fadeIn', {label: `${action[0]}.fadeIn()`});
-      Gui.add(action[1], 'fadeOut', {label: `${action[0]}.fadeOut()`});
-      Gui.add(action[1], 'togglePause', {label: `${action[0]}.togglePause()`});
-      Gui.add(action[1], 'stop', {label: `${action[0]}.stop()`});
-    });
+    // Object.entries(this.animations).forEach((action) => {
+      // Gui.add(action[1], 'play', {label: `${action[0]}.play()`});
+      // Gui.add(action[1], 'fadeIn', {label: `${action[0]}.fadeIn()`});
+      // Gui.add(action[1], 'fadeOut', {label: `${action[0]}.fadeOut()`});
+      // Gui.add(action[1], 'togglePause', {label: `${action[0]}.togglePause()`});
+      // Gui.add(action[1], 'stop', {label: `${action[0]}.stop()`});
+    // });
   }
 
   mouseMove = (event) => {
@@ -410,26 +1048,34 @@ class Application {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.defaultCamera.aspect = window.innerWidth / window.innerHeight;
     this.defaultCamera.updateProjectionMatrix();
-    this.activeCamera.aspect = window.innerWidth / window.innerHeight;
-    this.activeCamera.updateProjectionMatrix();
+    if (this.activeCamera !== this.defaultCamera) {
+      this.activeCamera.aspect = window.innerWidth / window.innerHeight;
+      this.activeCamera.updateProjectionMatrix();
+    }
     this.composer && this.composer.reset();
     this.setupFXComposer();
   };
 
   render = (dt) => {
+    this.materials.cylMaterial.emissiveIntensity = Math.sin(dt) * .5 + .5;
     this.controls && this.controls.update();
-    this.mixer && this.mixer.update(this.clock.getDelta());
-    // if (this.animations) {
-    //   Object.entries(this.animations).forEach((anim) => {
-    //     anim[1].mixer.update(anim[1].clock.getDelta());
-    //   });
-    // }
 
+    if (this.stats)
+      this.stats.begin();
+    // if (this.hdrMaterials.barMaterial) {
+      // let redValue = Math.round((Math.cos(this.time)*128) + 128);
+      // this.hdrMaterials.barMaterial.emissive = new THREE.Color(`rgb(${redValue}, 0, 0)`);
+      // this.hdrMaterials.sMaterial.color = new THREE.Color(`rgb(${redValue}, 0, 0)`);
+      // this.hdrMaterials.barMaterial.needsUpdate = true;
+    // }
+    this.renderFns.forEach((rdrFn) => rdrFn(dt));
     if (this.composer) {
       this.composer.render();
     } else {
       this.renderer.render(this.scene, this.activeCamera);
     }
+    if (this.stats)
+      this.stats.end();
   };
 
 }

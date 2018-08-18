@@ -304,6 +304,10 @@ babel-plugin-syntax-async-functions@^6.8.0:
   version "6.13.0"
   resolved "https://registry.yarnpkg.com/babel-plugin-syntax-async-functions/-/babel-plugin-syntax-async-functions-6.13.0.tgz#cad9cad1191b5ad634bf30ae0872391e0647be95"
 
+babel-plugin-syntax-class-properties@^6.8.0:
+  version "6.13.0"
+  resolved "https://registry.yarnpkg.com/babel-plugin-syntax-class-properties/-/babel-plugin-syntax-class-properties-6.13.0.tgz#d7eb23b79a317f8543962c505b827c7d6cac27de"
+
 babel-plugin-syntax-exponentiation-operator@^6.8.0:
   version "6.13.0"
   resolved "https://registry.yarnpkg.com/babel-plugin-syntax-exponentiation-operator/-/babel-plugin-syntax-exponentiation-operator-6.13.0.tgz#9ee7e8337290da95288201a6a57f4170317830de"
@@ -319,6 +323,15 @@ babel-plugin-transform-async-to-generator@^6.22.0:
     babel-helper-remap-async-to-generator "^6.24.1"
     babel-plugin-syntax-async-functions "^6.8.0"
     babel-runtime "^6.22.0"
+
+babel-plugin-transform-class-properties@^6.24.1:
+  version "6.24.1"
+  resolved "https://registry.yarnpkg.com/babel-plugin-transform-class-properties/-/babel-plugin-transform-class-properties-6.24.1.tgz#6a79763ea61d33d36f37b611aa9def81a81b46ac"
+  dependencies:
+    babel-helper-function-name "^6.24.1"
+    babel-plugin-syntax-class-properties "^6.8.0"
+    babel-runtime "^6.22.0"
+    babel-template "^6.24.1"
 
 babel-plugin-transform-es2015-arrow-functions@^6.22.0:
   version "6.22.0"
@@ -1022,6 +1035,10 @@ caniuse-lite@^1.0.30000844:
   version "1.0.30000862"
   resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000862.tgz#7ca14f5079fa8f77ac814fca92d45deb4b7eff9d"
 
+cannon@^0.6.2:
+  version "0.6.2"
+  resolved "https://registry.yarnpkg.com/cannon/-/cannon-0.6.2.tgz#1e7bc72dd5841982f3c104c2bc578bfa4fb1c572"
+
 chalk@^0.5.1:
   version "0.5.1"
   resolved "https://registry.yarnpkg.com/chalk/-/chalk-0.5.1.tgz#663b3a648b68b55d04690d49167aa837858f2174"
@@ -1246,6 +1263,10 @@ d@1:
 dash-ast@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/dash-ast/-/dash-ast-1.0.0.tgz#12029ba5fb2f8aa6f0a861795b23c1b4b6c27d37"
+
+dat-gui@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/dat-gui/-/dat-gui-0.5.0.tgz#1212da836109747d0ac220bad7b07c17daa03583"
 
 date-now@^0.1.4:
   version "0.1.4"
@@ -1934,6 +1955,10 @@ glslify@^5.0.2:
     static-module "^1.1.2"
     through2 "^0.6.3"
     xtend "^4.0.0"
+
+google-palette@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/google-palette/-/google-palette-1.1.0.tgz#37e508568b8ca904e57976dfe28d92f701624a9a"
 
 graceful-fs@^4.1.2:
   version "4.1.11"
@@ -3388,6 +3413,10 @@ static-module@^1.1.2:
     static-eval "~0.2.0"
     through2 "~0.4.1"
 
+stats-js@^1.0.0-alpha1:
+  version "1.0.0-alpha1"
+  resolved "https://registry.yarnpkg.com/stats-js/-/stats-js-1.0.0-alpha1.tgz#44ae82e6421123bab99750d95c3f5526b8f257db"
+
 statuses@1, "statuses@>= 1.4.0 < 2", statuses@~1.4.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/statuses/-/statuses-1.4.0.tgz#bb73d446da2796106efcc1b601a253d6c46bd087"
@@ -3553,6 +3582,14 @@ three-fbx-loader@^1.0.3:
     pako "^1.0.6"
     three "^0.89.0"
 
+three-gltf-loader@^1.94.0:
+  version "1.95.0"
+  resolved "https://registry.yarnpkg.com/three-gltf-loader/-/three-gltf-loader-1.95.0.tgz#79dc00f25aa28157a3851d7c0af3df262dd3b287"
+
+three-orbit-controls@^82.1.0:
+  version "82.1.0"
+  resolved "https://registry.yarnpkg.com/three-orbit-controls/-/three-orbit-controls-82.1.0.tgz#11a7f33d0a20ecec98f098b37780f6537374fab4"
+
 three@^0.89.0:
   version "0.89.0"
   resolved "https://registry.yarnpkg.com/three/-/three-0.89.0.tgz#4442d819a6168871b8d2cb37ad12a24310c170f5"
@@ -3561,9 +3598,9 @@ three@^0.91.0:
   version "0.91.0"
   resolved "https://registry.yarnpkg.com/three/-/three-0.91.0.tgz#033fe745b64e56e679a86581957cfd1c5f9fe284"
 
-three@^0.94.0:
+"three@github:donmccurdy/three.js#feat-animationutils-splitclip":
   version "0.94.0"
-  resolved "https://registry.yarnpkg.com/three/-/three-0.94.0.tgz#4ce6db7f2bfbf79c2d73444aa6e3cfc08a32d762"
+  resolved "https://codeload.github.com/donmccurdy/three.js/tar.gz/9d9b1bc0a01cc1329b2f796b680fb21cb9b235b1"
 
 through2@^0.6.3, through2@~0.6.1:
   version "0.6.5"
