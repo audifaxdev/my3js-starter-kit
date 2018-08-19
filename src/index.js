@@ -33,10 +33,12 @@ import { find, cloneDeep, map, filter, zipObject } from "lodash";
 import * as dat from 'dat-gui';
 import Stats from 'stats-js';
 import palette from 'google-palette';
+import {h,  Component, render as preactRender} from 'preact';
 
 const OrbitControls = require('three-orbit-controls')(THREE);
 const SplitText = require( './gsap-bonus/umd/SplitText');
 
+import './CheckInForm';
 import FXAAShader from './PostProcessing/FXAAShader';
 import PMREMGenerator from './Loaders/PMREMGenerator';
 import PMREMCubeUVPacker from './Loaders/PMREMCubeUVPacker';
@@ -44,6 +46,8 @@ import UnrealBloomPass from './PostProcessing/UnrealBloomPass';
 import BloomBlendPass from './PostProcessing/BloomBlendPass';
 import preloader from './utils/preloader';
 import manifest from './assets';
+import CheckInForm from './CheckInForm';
+import {render} from "preact";
 
 const DEBUG = false;
 const DEFAULT_CAMERA = '[default]';
@@ -72,37 +76,37 @@ const traverseMaterials = (object, callback) => {
   });
 };
 
-let developers = [
-  {name: 'Alpha', srcAvatar: './dist/img/alpha.png', image: null, selected: true, color: randomColor()},
-  {name: 'Beta', srcAvatar: './dist/img/beta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Gamma', srcAvatar: './dist/img/gamma.png', image: null, selected: true, color: randomColor()},
-  {name: 'Delta', srcAvatar: './dist/img/delta.gif', image: null, selected: true, color: randomColor()},
-  {name: 'Epsilon', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Zeta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Eta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Theta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Iota', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Kappa', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Lambda', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Mu', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Nu', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Xi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Omicron', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Pi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Rho', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Sigma', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Tau', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Upsilon', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Phi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Chi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Psi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Omega', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'One', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Two', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Three', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Five', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Height', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
-  {name: 'Thirteen', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+let defaultEntries = [
+  {id: 'Alpha', srcAvatar: './dist/img/alpha.png', image: null, selected: true, color: randomColor()},
+  {id: 'Beta', srcAvatar: './dist/img/beta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Gamma', srcAvatar: './dist/img/gamma.png', image: null, selected: true, color: randomColor()},
+  {id: 'Delta', srcAvatar: './dist/img/delta.gif', image: null, selected: true, color: randomColor()},
+  {id: 'Epsilon', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Zeta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Eta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Theta', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Iota', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Kappa', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Lambda', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Mu', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Nu', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Xi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Omicron', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Pi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Rho', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Sigma', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Tau', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Upsilon', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Phi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Chi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Psi', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Omega', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'One', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Two', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Three', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Five', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Height', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
+  {id: 'Thirteen', srcAvatar: './dist/img/zeta.png', image: null, selected: true, color: randomColor()},
 ];
 
 let defaultCfg = {
@@ -160,14 +164,15 @@ class Application {
   }
 
   init() {
+    this.standBy = true;
+    this.entries = defaultEntries;
     this.gameStats = {
-      players: zipObject(map(developers, dev => dev.name), map(developers, () => 0)),
+      players: {},
       total: 0
     };
     this.lightsMode = 2;
     this.polarCoord = 0.0;
     this.palette = palette('tol-rainbow', 30);
-    console.log('palette', this.palette);
     this.barGlowOffset = 0;
     this.cfg = defaultCfg;
     this.hdrMaterials = [];
@@ -251,22 +256,15 @@ class Application {
 
       this.setupHdrCubeRenderTarget(preloader.getHDRCubeMap('hdrCube'));
       this.updateHdrMaterialEnvMap();
-
+      this.renderFns.push(this.updateTexture, this.computeCurrentWinner, this.updatePhysicalWorld);
       loop(this.render).start();
-      window.addEventListener('keydown', this.keyPressed);
-      this.showText("Press Space to Start!", null);
     });
 
     if (DEBUG) {
       this.gui = new dat.GUI();
-
-      developers.forEach((developer) => {
-        this.gui.add(developer, 'selected').name(developer.name).onChange(this.refresh.bind(this));
-      });
       this.gui.add(this.cfg.container, 'currentRotation', -4*Math.PI, 4*Math.PI).onChange(this.tweenWheel);
       this.gui.add({startGame: this.startGame}, 'startGame');
       this.gui.add(this.materials.diskmaterial.uniforms.blending, 'value', 0, 1);
-
     }
     setInterval(() => {
       if (this.barGlowOffset === this.cfg.container.nbBars - 1) {
@@ -276,8 +274,29 @@ class Application {
       }
     }, 1000/24);
 
-    this.renderFns.push(this.updateTexture, this.computeCurrentWinner, this.updatePhysicalWorld);
+  }
 
+  initGame(data) {
+    console.log('InitGame', data);
+
+    if (this.standBy) {
+      if (!Array.isArray(data) || !data.length) {
+        data = defaultEntries;
+      }
+      console.log('this.entries', this.entries);
+      this.standBy = false;
+      this.entries = data;
+
+      window.addEventListener('keydown', this.keyPressed);
+      this.showText("Press Space to Start!", null);
+
+      this.gameStats.players = zipObject(map(data, entry => entry.id), map(data, () => 0));
+      if (DEBUG) {
+        data.forEach((entry) => {
+          this.gui.add(entry, 'selected').name(entry.id).onChange(this.refresh.bind(this));
+        });
+      }
+    }
   }
 
   createMaterials() {
@@ -294,7 +313,7 @@ class Application {
     // let material = new THREE.MeshBasicMaterial({ map: texture });
 
     let cylMaterial = new THREE.MeshStandardMaterial({
-      color: randomColor(), side: THREE.DoubleSide, metalness: .5, roughness: .7
+      color: '#'+this.palette[randomIntVal(this.palette.length)], side: THREE.DoubleSide, metalness: .5, roughness: .7
     });
 
     // let diskmaterial = new THREE.MeshBasicMaterial({
@@ -314,8 +333,6 @@ class Application {
       glslPalette[index*3 + 1] = colObj.g;
       glslPalette[index*3 + 2] = colObj.b;
     });
-    console.log('glslPalette', glslPalette);
-
 
     var diskmaterial = new THREE.ShaderMaterial( {
       side: THREE.DoubleSide,
@@ -643,7 +660,6 @@ class Application {
   };
 
   onBallAsleep = (e) => {
-    console.log('Winner is ', this.currentWinner);
     this.lightsMode = 2;
     let tl = new TimelineLite();
     tl.set('#ui-msg-overlay-2', {opacity:0, display: 'none'});
@@ -653,14 +669,13 @@ class Application {
     this.gameStats.total++;
 
     Object.entries(this.gameStats.players).forEach((entry) => {
-      console.log('enrtry', entry);
       let avr = entry[1] / this.gameStats.total;
       console.log(`${entry[0]} ${avr*100}%`);
     });
 
-    this.showText(`Winner is<br>${this.currentWinner.name}`);
+    this.showText(`${this.currentWinner.id}`, null);
     setTimeout(() => {
-      this.showText("Press Space to Start!", null)
+      this.showText("Press Space to Start!", null);
     }, 10000)
   };
 
@@ -672,13 +687,12 @@ class Application {
     tl.set(h1, {display: 'block'})
       .to(h1, .1, {opacity: 1})
       .staggerFrom(splitText.chars, 0.8, {opacity:0, rotation:90, scale:0, y:-60, ease:Back.easeOut}, 0.05, 0.1);
-    if (reverse)
+    if (!!reverse)
       tl.add(() => {tl.reverse(0)}, reverse);
   }
 
   hideText() {
     let h1 = document.querySelectorAll('#ui-msg-overlay')[0];
-    let splitText = new SplitText(h1, {type: "chars, words"});
     let tl = new TimelineLite();
     tl.set(h1, {display: ''})
       .to(h1, .1, {opacity: 0});
@@ -753,19 +767,18 @@ class Application {
     let centerX = xMax/2;
     let centerY = yMax/2;
     let border = 2;
-    let selectedDevelopers = filter(developers, (el) => el.selected);
-    let angle = 2*Math.PI/selectedDevelopers.length;
+    let angle = 2*Math.PI/this.entries.length;
     let i = 0;
 
     ctx1.clearRect(0, 0, xMax, yMax);
     ctx1.lineWidth = border;
     // ctx1.strokeStyle = '#003300';
     ctx1.strokeStyle = 'white';
-    if (selectedDevelopers.length > 1) {
-      selectedDevelopers.forEach((dev) => {
+    if (this.entries.length > 1) {
+      this.entries.forEach((entry) => {
         let startAngle = i*angle;
         let endAngle = (i+1)*angle;
-        let fillStyle = (this.currentWinner === dev) ?
+        let fillStyle = (this.currentWinner === entry) ?
           'red': i % 2 === 0 ? `#${this.palette[i]}` : 'black';
         ctx1.save();
         ctx1.fillStyle = fillStyle;
@@ -782,8 +795,8 @@ class Application {
         ctx1.font = "26px 'Oswald', sans-serif";
         ctx1.translate(centerX, centerY);
         ctx1.rotate(startAngle + angle/2 );
-        ctx1.fillText(dev.name, centerX - ctx1.measureText(dev.name).width - 10, 8);
-        // ctx1.drawImage(dev.image, -35, -centerY + 15, 70, 70);
+        ctx1.fillText(entry.id, centerX - ctx1.measureText(entry.id).width - 10, 8);
+        // ctx1.drawImage(entry.image, -35, -centerY + 15, 70, 70);
         ctx1.restore();
         i++;
       });
@@ -794,8 +807,7 @@ class Application {
   };
 
   computeCurrentWinner = () => {
-    let selectedDevelopers = filter(developers, (el) => el.selected);
-    let angle = 2*Math.PI/selectedDevelopers.length;
+    let angle = 2*Math.PI/this.entries.length;
     let i = 0;
 
     let rayCaster = new Raycaster(this.ball.position, new THREE.Vector3(0, 0, 1));
@@ -810,11 +822,11 @@ class Application {
         if (this.polarCoord < 0) {
           this.polarCoord += 2*Math.PI;
         }
-        selectedDevelopers.forEach((dev) => {
+        this.entries.forEach((entry) => {
           let startAngle = (i*angle);
           let endAngle = ((i+1)*angle);
           if (((startAngle <= this.polarCoord) && (this.polarCoord <= endAngle))) {
-            this.setCurrentWinner(dev);
+            this.setCurrentWinner(entry);
           }
           i++;
         });
@@ -822,11 +834,11 @@ class Application {
     }
   };
 
-  setCurrentWinner(dev) {
-    if (dev !== this.currentWinner) {
-      this.currentWinner = dev;
+  setCurrentWinner(entry) {
+    if (entry !== this.currentWinner) {
+      this.currentWinner = entry;
       let h2 = document.querySelectorAll('#ui-msg-overlay-2')[0];
-      h2.innerHTML = dev.name;
+      h2.innerHTML = entry.id;
     }
   }
 
@@ -954,8 +966,6 @@ class Application {
     let floatingAnimation = cornerAnimations.filter((clip) => clip.name.includes('float'));
     let mainAnimation = cornerAnimations.filter((clip) => clip.name.includes('main'));
 
-    // console.log({floatingAnimation, mainAnimation});
-
     this.addAnimation(
       'float', map(floatingAnimation, (clip) => this.mixer.clipAction(clip)), (action) => {
         return action.reset().setEffectiveTimeScale(.2).setLoop(LoopRepeat);
@@ -1025,25 +1035,6 @@ class Application {
     this.mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
   };
 
-  mouseClick = (event) => {
-    this.raycaster.setFromCamera( this.mouse, this.activeCamera );
-    let intersects = this.raycaster.intersectObjects( this.scene.children, true );
-    if (Array.isArray(intersects) && intersects.length) {
-      console.log(intersects);
-      if (!this.mouseOverCube) {
-        //start animation
-        // this.fadeInAllClips();
-      }
-      this.mouseOverCube = true;
-    } else {
-      if (this.mouseOverCube) {
-        //stop animation
-        // this.fadeOutAllClips();
-      }
-      this.mouseOverCube = false;
-    }
-  };
-
   resize = () => {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.defaultCamera.aspect = window.innerWidth / window.innerHeight;
@@ -1080,4 +1071,4 @@ class Application {
 
 }
 
-document.addEventListener("DOMContentLoaded", () => new Application());
+document.addEventListener("DOMContentLoaded", () => preactRender(<CheckInForm app={new Application()} />, document.body));
