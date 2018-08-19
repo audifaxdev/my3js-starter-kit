@@ -33,7 +33,7 @@ import { find, cloneDeep, map, filter, zipObject } from "lodash";
 import * as dat from 'dat-gui';
 import Stats from 'stats-js';
 import palette from 'google-palette';
-import {h,  Component, render as preactRender} from 'preact';
+import {h, render as preactRender} from 'preact';
 
 const OrbitControls = require('three-orbit-controls')(THREE);
 const SplitText = require( './gsap-bonus/umd/SplitText');
@@ -47,7 +47,7 @@ import BloomBlendPass from './PostProcessing/BloomBlendPass';
 import preloader from './utils/preloader';
 import manifest from './assets';
 import CheckInForm from './CheckInForm';
-import {render} from "preact";
+import {CannonDebugRenderer} from './utils/CannonDebugRenderer';
 
 const DEBUG = false;
 const DEFAULT_CAMERA = '[default]';
@@ -125,7 +125,7 @@ let defaultCfg = {
     barSize: {
       x: .5, y: 1, z: 4
     },
-    markBarHeight: .95,
+    markBarHeight: 1.02,
     currentRotation: 0
   },
   ball: {
@@ -164,6 +164,7 @@ class Application {
   }
 
   init() {
+    this.playing = false;
     this.standBy = true;
     this.entries = defaultEntries;
     this.gameStats = {
@@ -231,7 +232,7 @@ class Application {
         document.body.appendChild( this.stats.domElement );
       }
       this.scene.add(new AxesHelper(5000));
-      let ball = new Mesh( new SphereGeometry( 10, 32, 32 ), new MeshStandardMaterial({
+      let ball = new Mesh( new SphereGeometry( this.cfg.ball.radius, 32, 32 ), new MeshStandardMaterial({
         map: null,
         color: 0xffffff,
         metalness: 1,
@@ -258,14 +259,17 @@ class Application {
       this.updateHdrMaterialEnvMap();
       this.renderFns.push(this.updateTexture, this.computeCurrentWinner, this.updatePhysicalWorld);
       loop(this.render).start();
+      if (DEBUG) {
+        this.gui = new dat.GUI();
+        this.gui.add(this.cfg.container, 'currentRotation', -4*Math.PI, 4*Math.PI).onChange(this.tweenWheel);
+        this.gui.add({startGame: this.startGame}, 'startGame');
+        this.gui.add(this.materials.diskmaterial.uniforms.blending, 'value', 0, 1);
+        TweenLite.set('.login-wrapper', {display: 'none'});
+        TweenLite.set('#ui-msg-overlay-c', {display: 'none'});
+        this.initGame(null);
+      }
     });
 
-    if (DEBUG) {
-      this.gui = new dat.GUI();
-      this.gui.add(this.cfg.container, 'currentRotation', -4*Math.PI, 4*Math.PI).onChange(this.tweenWheel);
-      this.gui.add({startGame: this.startGame}, 'startGame');
-      this.gui.add(this.materials.diskmaterial.uniforms.blending, 'value', 0, 1);
-    }
     setInterval(() => {
       if (this.barGlowOffset === this.cfg.container.nbBars - 1) {
         this.barGlowOffset = 0;
@@ -291,11 +295,6 @@ class Application {
       this.showText("Press Space to Start!", null);
 
       this.gameStats.players = zipObject(map(data, entry => entry.id), map(data, () => 0));
-      if (DEBUG) {
-        data.forEach((entry) => {
-          this.gui.add(entry, 'selected').name(entry.id).onChange(this.refresh.bind(this));
-        });
-      }
     }
   }
 
@@ -500,7 +499,7 @@ class Application {
     this.circle.rotation.set(Math.PI, 0, 0);
     this.wheel.add(this.circle);
 
-    let sGeometry = new THREE.SphereGeometry( cfgBall.radius, 32, 32 );
+    let sGeometry = new THREE.SphereGeometry( this.cfg.ball.radius, 32, 32 );
 
     this.ball = new THREE.Mesh( sGeometry, this.materials.sMaterial );
     this.scene.add( this.ball );
@@ -582,9 +581,9 @@ class Application {
     let angleFraction = 2*Math.PI / this.cfg.container.nbBars;
 
     for (let i=0; i< this.cfg.container.nbBars; i++) {
-      let barRadius = i%2 ? cfgContainer.radius*1.02:cfgContainer.radius;
-      let radius = cfgContainer.radius;
+      let barRadius = i%2 ? cfgContainer.radius*cfgContainer.markBarHeight:cfgContainer.radius;
       let angularPos = i * angleFraction;
+      let radius = cfgContainer.radius;
 
       let boxShape = new CANNON.Box(new CANNON.Vec3(cfgContainer.barSize.y, cfgContainer.barSize.x, cfgContainer.barSize.z));
       let cylinderBody = new CANNON.Body({mass: 0, material: physicsMaterial.id});
@@ -613,7 +612,8 @@ class Application {
       this.cannonWorld.addBody(wallBody);
       this.bars.push({wall: wallBody, cylinder: cylinderBody, mesh: bumpBoxMesh});
     }
-    // this.cannonDebugRenderer = new CannonDebugRenderer(this.scene, this.cannonWorld);
+    if (DEBUG)
+      this.cannonDebugRenderer = new CannonDebugRenderer(this.scene, this.cannonWorld);
   }
 
   setupHdrCubeRenderTarget(hdrCubeMap) {
@@ -640,10 +640,12 @@ class Application {
   };
 
   startGame = () => {
+    if (this.playing) return;
+    this.playing = true;
     let cfgContainer = this.cfg.container;
     this.lightsMode = 1;
     this.hideText();
-    TweenLite.set('#ui-msg-overlay-2', {display: 'block', opacity: 1});
+    TweenLite.set('#ui-msg-overlay-2', {display: 'table-cell', opacity: 1});
 
     let tl = new TimelineLite({onComplete: () => {
       this.sphereBody.allowSleep = true;
@@ -675,6 +677,7 @@ class Application {
 
     this.showText(`${this.currentWinner.id}`, null);
     setTimeout(() => {
+      this.playing = false;
       this.showText("Press Space to Start!", null);
     }, 10000)
   };
@@ -684,7 +687,7 @@ class Application {
     h1.innerHTML = text;
     let splitText = new SplitText(h1, {type: "chars, words"});
     let tl = new TimelineLite();
-    tl.set(h1, {display: 'block'})
+    tl.set(h1, {display: 'table-cell'})
       .to(h1, .1, {opacity: 1})
       .staggerFrom(splitText.chars, 0.8, {opacity:0, rotation:90, scale:0, y:-60, ease:Back.easeOut}, 0.05, 0.1);
     if (!!reverse)
@@ -712,7 +715,7 @@ class Application {
       let cylinder = bar.cylinder;
 
       let angularPos = i * angleFraction;
-      let radius = i%2 ? cfgContainer.radius*1.02:cfgContainer.radius;
+      let radius = i%2 ? cfgContainer.radius*cfgContainer.markBarHeight:cfgContainer.radius;
 
       // let radius = cfgContainer.radius;
       let newX = (cfgContainer.radius)*Math.cos(angularPos + -cfgContainer.currentRotation);
