@@ -86,7 +86,7 @@ class CheckInForm extends Component {
             <h1>Wheel Of Fate</h1>
             <h5>
               Add your entries to be picked by the Wheel of Fate<br/>
-              Or Try or Demo.
+              Or Try the Demo.
             </h5>
             {error ? <p>{error}</p>: null}
             <form onSubmit={this.go} id="entryForm" method="post">
